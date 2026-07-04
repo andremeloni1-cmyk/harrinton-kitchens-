@@ -27,7 +27,7 @@ if [[ -z "$SECRET" ]]; then
   fi
   echo "Generated a new CRON_SECRET and saved it to .env"
   echo "Restarting app to pick it up..."
-  pm2 restart joineryflow --update-env >/dev/null 2>&1 || true
+  pm2 restart harringtonkitchens --update-env >/dev/null 2>&1 || true
 fi
 
 # Friday at 19:00, evaluated in TZ_VALUE (CRON_TZ applies to the lines below it).

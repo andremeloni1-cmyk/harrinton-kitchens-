@@ -1,13 +1,13 @@
-# Connecting JoineryFlow to Xero
+# Connecting Harrington Kitchens to Xero
 
-JoineryFlow pushes invoices into Xero, pulls payment statuses back, and shows
+Harrington Kitchens pushes invoices into Xero, pulls payment statuses back, and shows
 your Profit & Loss straight from your books. It needs a (free) Xero developer
 app so it can talk to your organisation.
 
 ## 1. Create the Xero app
 
 1. Sign in at <https://developer.xero.com/app/manage> with your Xero login.
-2. **New app** → give it a name (e.g. "JoineryFlow"), choose **Web app**.
+2. **New app** → give it a name (e.g. "Harrington Kitchens"), choose **Web app**.
 3. Company or application URL: your app URL (e.g. `https://jobs.yourdomain.com`).
 4. **Redirect URI** — must be exactly:
 
@@ -30,7 +30,7 @@ XERO_SALES_ACCOUNT_CODE="200"     # your Sales account code in Xero's chart of a
 XERO_EXPENSE_ACCOUNT_CODE="400"   # account receipts post to (also settable per-account in Settings)
 ```
 
-Restart the app (`pm2 restart joineryflow --update-env`).
+Restart the app (`pm2 restart harringtonkitchens --update-env`).
 
 ## 3. Connect
 
@@ -46,7 +46,7 @@ organisation. Settings then shows "Connected to <your org>".
 - Payment statuses (paid / amounts due) sync back when you open the Money tab
   (throttled to every 5 minutes) — or on the daily cron below.
 - The **P&L** tab shows Xero's Profit and Loss report for any period.
-- **Receipts** (Money → Receipts): snap a photo, JoineryFlow reads the vendor,
+- **Receipts** (Money → Receipts): snap a photo, Harrington Kitchens reads the vendor,
   date, total and GST, and can push it to Xero as a **spend-money** transaction
   with the image attached — so it's a one-tap reconcile against your bank feed.
   Pick which bank account they post to under **Settings → Xero**.
@@ -60,7 +60,7 @@ organisation. Settings then shows "Connected to <your org>".
 
 > **On bank reconciliation:** Xero does not allow apps to tick a bank line as
 > reconciled via its API (that raw bank-feed data is protected under open-banking
-> rules). JoineryFlow gets you as close as the API allows — the spend-money
+> rules). Harrington Kitchens gets you as close as the API allows — the spend-money
 > transaction lands pre-filled on Xero's reconcile screen for a one-tap confirm.
 
 Without a connection everything still works locally — invoices just aren't in
@@ -82,6 +82,6 @@ the inbox scan (see `deploy/setup-cron.sh`):
   idle longer than that, Settings will show "Connect Xero" again — just
   reconnect.
 - If your Xero org uses its own invoice auto-numbering, Xero may assign a
-  different number; JoineryFlow shows both.
+  different number; Harrington Kitchens shows both.
 - Authorising an invoice requires a valid `XERO_SALES_ACCOUNT_CODE`; drafts
   push fine without one.

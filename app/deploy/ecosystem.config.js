@@ -1,9 +1,9 @@
-// PM2 process definition for JoineryFlow.
+// PM2 process definition for Harrington Kitchens.
 // Usage: pm2 start deploy/ecosystem.config.js && pm2 save
 module.exports = {
   apps: [
     {
-      name: "joineryflow",
+      name: "harringtonkitchens",
       cwd: __dirname + "/..",
       script: "node_modules/next/dist/bin/next",
       args: "start -p 3000",

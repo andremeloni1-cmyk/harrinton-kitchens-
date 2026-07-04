@@ -14,7 +14,7 @@ KEEP_BACKUPS=14
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 # Never let two runs overlap — a build takes longer than the cron interval.
-exec 9>"/tmp/joineryflow-autoupdate.lock"
+exec 9>"/tmp/harringtonkitchens-autoupdate.lock"
 flock -n 9 || exit 0
 
 cd "$APP_DIR"
@@ -53,9 +53,9 @@ deploy() {
   fi
 
   # Safety net: snapshot the SQLite file before migrations touch it.
-  if [[ -f "$APP_DIR/prisma/joineryflow.db" ]]; then
+  if [[ -f "$APP_DIR/prisma/harringtonkitchens.db" ]]; then
     mkdir -p "$BACKUP_DIR"
-    cp "$APP_DIR/prisma/joineryflow.db" "$BACKUP_DIR/$(date +%Y%m%d-%H%M%S)-${TARGET:0:9}.db"
+    cp "$APP_DIR/prisma/harringtonkitchens.db" "$BACKUP_DIR/$(date +%Y%m%d-%H%M%S)-${TARGET:0:9}.db"
     ls -1t "$BACKUP_DIR"/*.db 2>/dev/null | tail -n "+$((KEEP_BACKUPS + 1))" | xargs -r rm -f
   fi
 
@@ -63,7 +63,7 @@ deploy() {
     { npm ci || npm install; } &&
     npx prisma migrate deploy &&
     npm run build &&
-    pm2 reload joineryflow --update-env
+    pm2 reload harringtonkitchens --update-env
 }
 
 if deploy; then

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# JoineryFlow — one-shot deployment for a fresh Ubuntu 22.04/24.04 Hostinger VPS.
+# Harrington Kitchens — one-shot deployment for a fresh Ubuntu 22.04/24.04 Hostinger VPS.
 # Idempotent: safe to re-run after pulling new code.
 #
 #   sudo DOMAIN=jobs.example.com EMAIL=you@example.com bash deploy/install.sh
@@ -73,16 +73,16 @@ npm run build
 
 # --- 6. pm2 service ----------------------------------------------------------
 log "Starting app under pm2"
-pm2 start deploy/ecosystem.config.js --update-env || pm2 reload joineryflow --update-env
+pm2 start deploy/ecosystem.config.js --update-env || pm2 reload harringtonkitchens --update-env
 pm2 save
 pm2 startup systemd -u root --hp /root | tail -n 1 | bash || true
 
 # --- 7. nginx ----------------------------------------------------------------
 if [[ -n "$DOMAIN" ]]; then
   log "Configuring nginx for $DOMAIN"
-  SITE=/etc/nginx/sites-available/joineryflow
-  sed "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" deploy/nginx-joineryflow.conf > "$SITE"
-  ln -sf "$SITE" /etc/nginx/sites-enabled/joineryflow
+  SITE=/etc/nginx/sites-available/harringtonkitchens
+  sed "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" deploy/nginx-harringtonkitchens.conf > "$SITE"
+  ln -sf "$SITE" /etc/nginx/sites-enabled/harringtonkitchens
   rm -f /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
 

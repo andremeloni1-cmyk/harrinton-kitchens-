@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="/var/log/joineryflow-autoupdate.log"
+LOG_FILE="/var/log/harringtonkitchens-autoupdate.log"
 
 chmod +x "$SCRIPT_DIR/auto-update.sh"
 touch "$LOG_FILE"

@@ -1,6 +1,6 @@
-# Deploying JoineryFlow to Hostinger
+# Deploying Harrington Kitchens to Hostinger
 
-JoineryFlow is a Node.js (Next.js) app, so it needs a **Hostinger VPS** — not
+Harrington Kitchens is a Node.js (Next.js) app, so it needs a **Hostinger VPS** — not
 shared hosting. Any small plan (1 vCPU / 1 GB RAM) is plenty.
 
 ## Before you start
@@ -17,10 +17,18 @@ SSH into the VPS as root and run:
 
 ```bash
 apt-get update && apt-get install -y git
-git clone https://github.com/andremeloni1-cmyk/Joineryflow.git
-cd Joineryflow/app
+git clone https://github.com/andremeloni1-cmyk/harrinton-kitchens-.git
+cd harrinton-kitchens-/app
 sudo DOMAIN=jobs.yourdomain.com EMAIL=you@yourdomain.com bash deploy/install.sh
 ```
+
+> **Private repo?** `git clone` over HTTPS will ask for credentials — use a
+> GitHub fine-grained personal access token (repo → Contents: read) as the
+> password, or make the repo public for the demo.
+>
+> **Deploying a branch** (e.g. before the demo PR is merged): add
+> `-b <branch-name>` to the `git clone` line. The updater scripts follow
+> whatever branch the checkout tracks.
 
 The script will:
 
@@ -45,7 +53,7 @@ your home screen (it's a PWA — it behaves like an app).
    ```
 2. Make sure the Google redirect URI is
    `https://jobs.yourdomain.com/api/auth/google/callback`.
-3. `pm2 reload joineryflow` then **Settings → Connect Google account**.
+3. `pm2 reload harringtonkitchens` then **Settings → Connect Google account**.
 
 ## Enable automatic inbox checking (incoming job leads)
 
@@ -53,7 +61,7 @@ Emails from trusted senders (managed in **Settings → Incoming jobs**) become j
 leads to approve. To have the app check the inbox automatically every 15 minutes:
 
 ```bash
-cd /root/Joineryflow/app && sudo bash deploy/setup-cron.sh
+cd /root/harrinton-kitchens-/app && sudo bash deploy/setup-cron.sh
 ```
 
 This generates a `CRON_SECRET`, restarts the app, and installs a cron entry. You
@@ -63,7 +71,7 @@ screen.
 ## Updating later
 
 ```bash
-cd /root/Joineryflow/app && sudo bash deploy/update.sh
+cd /root/harrinton-kitchens-/app && sudo bash deploy/update.sh
 ```
 
 Pulls the latest code, migrates, rebuilds and reloads with zero config changes.
@@ -73,7 +81,7 @@ Pulls the latest code, migrates, rebuilds and reloads with zero config changes.
 To skip the manual step entirely, install the auto-updater once:
 
 ```bash
-cd /root/Joineryflow/app && sudo bash deploy/setup-autoupdate.sh
+cd /root/harrinton-kitchens-/app && sudo bash deploy/setup-autoupdate.sh
 ```
 
 Every minute the server does a cheap `git fetch`; when a new commit lands on
@@ -81,7 +89,7 @@ the deployed branch it backs up the database (last 14 kept in
 `app/prisma/backups/`), pulls, migrates, rebuilds and reloads — typically live
 within a minute or two of the push. Notes:
 
-- Watch it work: `tail -f /var/log/joineryflow-autoupdate.log`
+- Watch it work: `tail -f /var/log/harringtonkitchens-autoupdate.log`
 - If a deploy fails it retries each minute; after 5 failures on the same
   commit it stops and waits for a fixed commit. The running app keeps serving
   the previous build throughout — nothing changes until the final
@@ -93,20 +101,20 @@ within a minute or two of the push. Notes:
 
 | Task | Command |
 |------|---------|
-| App status / logs | `pm2 status` · `pm2 logs joineryflow` |
-| Restart | `pm2 reload joineryflow` |
+| App status / logs | `pm2 status` · `pm2 logs harringtonkitchens` |
+| Restart | `pm2 reload harringtonkitchens` |
 | nginx reload | `nginx -t && systemctl reload nginx` |
 | Renew TLS (auto, but force) | `certbot renew` |
-| Back up data | copy `app/prisma/joineryflow.db` somewhere safe |
+| Back up data | copy `app/prisma/harringtonkitchens.db` somewhere safe |
 
 ## Backups
 
-All data lives in the single SQLite file `app/prisma/joineryflow.db`. A simple
+All data lives in the single SQLite file `app/prisma/harringtonkitchens.db`. A simple
 nightly backup:
 
 ```bash
 mkdir -p /root/backups
-(crontab -l 2>/dev/null; echo '0 2 * * * cp /root/Joineryflow/app/prisma/joineryflow.db /root/backups/joineryflow-$(date +\%F).db') | crontab -
+(crontab -l 2>/dev/null; echo '0 2 * * * cp /root/harrinton-kitchens-/app/prisma/harringtonkitchens.db /root/backups/harringtonkitchens-$(date +\%F).db') | crontab -
 ```
 
 (The parentheses keep any existing cron entries — the inbox scan and

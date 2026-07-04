@@ -1,11 +1,11 @@
 # Connecting Google (Calendar, Drive, Gmail)
 
-JoineryFlow uses a single Google account — yours — to add calendar events, file
+Harrington Kitchens uses a single Google account — yours — to add calendar events, file
 PDFs in Drive and send client emails. This is a one-time setup.
 
 ## 1. Create a Google Cloud project
 
-1. Go to <https://console.cloud.google.com/> and create a project (e.g. *JoineryFlow*).
+1. Go to <https://console.cloud.google.com/> and create a project (e.g. *Harrington Kitchens*).
 2. **APIs & Services → Library** — enable all three:
    - Google Calendar API
    - Google Drive API
@@ -40,7 +40,7 @@ GOOGLE_CLIENT_SECRET="..."
 APP_URL="https://jobs.yourdomain.com"   # must match the redirect URI host
 ```
 
-Restart the app (`pm2 reload joineryflow` in production).
+Restart the app (`pm2 reload harringtonkitchens` in production).
 
 ## 5. Connect
 
@@ -48,7 +48,7 @@ Open **Settings → Connect Google account** and approve access. You'll be sent
 back with *Connected ✓*. From then on:
 
 - Accepting a job adds it to your Google Calendar.
-- *Find in email* pulls job PDFs into a **JoineryFlow Jobs** folder in Drive.
+- *Find in email* pulls job PDFs into a **Harrington Kitchens Jobs** folder in Drive.
 - Accept / move / cancel emails are sent from your Gmail.
 
 To revoke, use **Disconnect** in Settings (or remove access at
