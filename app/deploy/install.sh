@@ -15,6 +15,10 @@ cd "$APP_DIR"
 NODE_MAJOR="${NODE_MAJOR:-20}"
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
+# Localhost port the app listens on behind nginx. Change (e.g. APP_PORT=3001)
+# when another app on this VPS already uses 3000.
+APP_PORT="${APP_PORT:-3000}"
+export APP_PORT
 
 log() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -81,7 +85,7 @@ pm2 startup systemd -u root --hp /root | tail -n 1 | bash || true
 if [[ -n "$DOMAIN" ]]; then
   log "Configuring nginx for $DOMAIN"
   SITE=/etc/nginx/sites-available/harringtonkitchens
-  sed "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" deploy/nginx-harringtonkitchens.conf > "$SITE"
+  sed -e "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" -e "s/PORT_PLACEHOLDER/$APP_PORT/g" deploy/nginx-harringtonkitchens.conf > "$SITE"
   ln -sf "$SITE" /etc/nginx/sites-enabled/harringtonkitchens
   rm -f /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
@@ -102,7 +106,7 @@ if [[ -n "$DOMAIN" ]]; then
     echo "  Set EMAIL=... to auto-request TLS, or run certbot manually later."
   fi
 else
-  echo "  DOMAIN not set — skipped nginx/TLS. App is on http://127.0.0.1:3000"
+  echo "  DOMAIN not set — skipped nginx/TLS. App is on http://127.0.0.1:$APP_PORT"
 fi
 
 log "Done. App: ${DOMAIN:+https://$DOMAIN}  |  pm2 status: pm2 status"

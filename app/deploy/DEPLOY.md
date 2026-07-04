@@ -29,6 +29,19 @@ sudo DOMAIN=jobs.yourdomain.com EMAIL=you@yourdomain.com bash deploy/install.sh
 > **Deploying a branch** (e.g. before the demo PR is merged): add
 > `-b <branch-name>` to the `git clone` line. The updater scripts follow
 > whatever branch the checkout tracks.
+>
+> **Sharing a VPS with another app** (e.g. JoineryFlow already on it): pick a
+> free port with `APP_PORT`, and everything else stays separate — its own pm2
+> process (`harringtonkitchens`), nginx site and database:
+>
+> ```bash
+> sudo DOMAIN=demo.yourdomain.com EMAIL=you@yourdomain.com APP_PORT=3001 bash deploy/install.sh
+> ```
+>
+> The script only removes nginx's *default* placeholder site, never named
+> sites, so existing apps keep serving. It also runs `ufw allow OpenSSH` +
+> `ufw allow 'Nginx Full'` and enables ufw — if the VPS hosts services on
+> other ports, allow those in ufw first.
 
 The script will:
 
