@@ -1,0 +1,22 @@
+[
+  { "name": "Wall cabinet / floor cabinet", "unit": "each", "price": 50, "category": "Cabinets" },
+  { "name": "Dishwasher space", "unit": "each", "price": 50, "category": "Cabinets" },
+  { "name": "Tall cabinet", "unit": "each", "price": 70, "category": "Cabinets" },
+  { "name": "Bench appliance cabinet", "unit": "each", "price": 70, "category": "Cabinets" },
+  { "name": "3-piece corner pantry / blind pantry", "unit": "each", "price": 150, "category": "Cabinets" },
+  { "name": "Dartanyon work (per cabinet)", "unit": "each", "price": 45, "category": "Cabinets" },
+  { "name": "Standard capping (per cabinet)", "unit": "each", "price": 12, "category": "Capping & panels" },
+  { "name": "Dentil capping (per cabinet)", "unit": "each", "price": 20, "category": "Capping & panels" },
+  { "name": "Bulkheads (per cabinet)", "unit": "each", "price": 12, "category": "Capping & panels" },
+  { "name": "Scribe panels (per scribe)", "unit": "each", "price": 10, "category": "Capping & panels" },
+  { "name": "Recessed kickboards", "unit": "metre", "price": 8, "category": "Capping & panels" },
+  { "name": "Join in laminate bench", "unit": "each", "price": 15, "category": "Benchtops" },
+  { "name": "Sink cut-out in laminate bench (incl. silicone waterproofing)", "unit": "each", "price": 30, "category": "Benchtops" },
+  { "name": "Handles", "unit": "each", "price": 1, "category": "Finishing" },
+  { "name": "Fitting island plinth", "unit": "each", "price": 90, "category": "Finishing" },
+  { "name": "Fit Hamptons hood / canopy hood", "unit": "each", "price": 70, "category": "Finishing" },
+  { "name": "Clean kitchen, white stickers, no more gaps (per cabinet)", "unit": "each", "price": 5, "category": "Finishing" },
+  { "name": "Fitting architraves", "unit": "hour", "price": 45, "category": "Labour" },
+  { "name": "Carpentry / maintenance / labour", "unit": "hour", "price": 45, "category": "Labour" },
+  { "name": "Gyprock patching (small job ~1 hr, kitchen ~2 hrs)", "unit": "hour", "price": 45, "category": "Labour" }
+]

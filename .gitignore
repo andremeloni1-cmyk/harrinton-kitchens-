@@ -1,0 +1,6 @@
+# Local deployment configuration — contains secrets, never commit
+deploy/config.env
+
+# Rendered artifacts produced by the scripts on the target host
+deploy/.rendered/
+*.log

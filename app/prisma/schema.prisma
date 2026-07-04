@@ -1,0 +1,326 @@
+// Harrington Kitchens data model.
+// SQLite keeps deployment on a Hostinger VPS dead simple (single file, no server).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// The single owner account. Holds Google OAuth tokens once connected.
+model Account {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  // Google OAuth — null until the owner connects their Google account.
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  googleEmail        String?
+  calendarId         String   @default("primary")
+  driveFolderId      String?  // root Drive folder where job PDFs are filed
+  signature          String?  // appended to client emails
+  logo               String?  // base64 logo embedded in client email signatures
+  logoMime           String?  // mime type of the logo (e.g. image/png)
+  logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
+  logoDarkMime       String?
+  // Xero OAuth — null until connected. Refresh tokens are single-use rotating,
+  // so the stored value is replaced on every refresh.
+  xeroAccessToken       String?
+  xeroRefreshToken      String?
+  xeroTokenExpiry       DateTime?
+  xeroTenantId          String?   // Xero organisation (tenant) id from /connections
+  xeroOrgName           String?   // organisation display name for the Settings card
+  xeroLastInvoiceSyncAt DateTime? // throttles the pull-sync on invoices page load
+  // Which Xero bank account spend-money receipts post against, plus the expense
+  // account code to book them to (defaults to XERO_EXPENSE_ACCOUNT_CODE / 400).
+  xeroBankAccountId     String?
+  xeroBankAccountName   String?
+  xeroExpenseAccountCode String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Client {
+  id            String    @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  xeroContactId String?   @unique // linked Xero contact (set on first invoice push)
+  jobs          Job[]
+  invoices      Invoice[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// A remembered person — name/email/phone captured whenever the owner enters
+// one, so they can be suggested when filling out later jobs/invoices.
+model Contact {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// An installer on the Harrington Kitchens team. Jobs are assigned to an
+// installer; the installer portal shows their run sheet and lets them file
+// maintenance reports against their jobs.
+model Installer {
+  id        String   @id @default(cuid())
+  name      String
+  role      String   @default("Installer") // e.g. Lead installer / Apprentice
+  email     String?  @unique
+  phone     String?
+  color     String   @default("#0d9488") // chip / calendar colour
+  active    Boolean  @default(true)
+  notes     String?
+  jobs      Job[]
+  reports   MaintenanceReport[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Job lifecycle: lead -> quoted -> accepted -> scheduled -> in_progress -> completed
+//                                         \-> cancelled (from any state)
+model Job {
+  id           String    @id @default(cuid())
+  reference    String    @unique          // human reference e.g. JOB-1042
+  title        String
+  description  String?
+  status       String    @default("lead") // see lifecycle above
+  priority     String    @default("normal") // low | normal | high
+
+  // Scheduling
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  durationMins   Int       @default(120)
+
+  // Money
+  quoteAmount  Float?
+  currency     String   @default("AUD")
+
+  // Per-job checklists (JSON arrays of { label, done }).
+  // todos: work steps, drafted from the description by AI then edited.
+  // maintenanceTasks: the return-trip / follow-up maintenance checklist.
+  todos            String @default("[]")
+  maintenanceTasks String @default("[]")
+
+  // Component estimate built from the price list (JSON LineItem[]). Feeds the
+  // job's quoteAmount ("Set as quote") and the invoice's default lines.
+  estimateItems    String @default("[]")
+
+  // Site
+  address      String?
+
+  // The client company this job belongs to (LeadSource.id) — the builder
+  // company Harrington Kitchens installs for. Null = direct/private work.
+  companyId    String?
+
+  // Client link (the company's Client row once invoiced) + denormalised site
+  // contact from the job sheet (homeowner name/phone; sender email for scans).
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id])
+  clientName   String?
+  clientEmail  String?
+  clientPhone  String?
+
+  // The installer this job is assigned to. SetNull: removing an installer
+  // leaves their jobs unassigned rather than deleting them.
+  installerId  String?
+  installer    Installer? @relation(fields: [installerId], references: [id], onDelete: SetNull)
+
+  // Lead provenance — set when a job was imported from an incoming email.
+  leadSource     String?  // sender email address it came from
+  gmailMessageId String?  // source email (shared by all jobs split from one email)
+  gmailThreadId  String?
+
+  // Review flag set by intake reconciliation (e.g. "review" = the job's company
+  // sent a weekly email that no longer lists it — possibly moved/cancelled).
+  flag           String?
+
+  // Google links
+  googleEventId  String?  // primary calendar event (first working day)
+  googleEventIds String?  // JSON array of all calendar event ids (one per working day)
+  driveFolderId  String?  // Drive folder for this job's PDFs
+  drivePhotosFolderId String? // shared "Photos (client)" subfolder (anyone-with-link)
+
+  documents    Document[]
+  reports      MaintenanceReport[]
+  activities   Activity[]
+  invoices     Invoice[]
+  expenses     Expense[]
+
+  notes        String?
+  completedAt  DateTime? // set when status first becomes "completed" (real completion time)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// An invoice raised for a job, mirrored to Xero once pushed.
+// Lifecycle: draft -> submitted -> authorised -> paid | voided.
+// "Overdue" is derived (authorised, amountDue > 0, dueDate past) — never stored.
+// jobId/clientId use SetNull: invoices are financial records and must survive
+// a job being hard-deleted.
+model Invoice {
+  id            String    @id @default(cuid())
+  number        String    @unique // local numbering e.g. INV-1001
+  status        String    @default("draft")
+  jobId         String?
+  job           Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  clientId      String?
+  client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  issueDate     DateTime  @default(now())
+  dueDate       DateTime?
+  currency      String    @default("AUD")
+  // JSON array: [{ description, quantity, unitAmount, accountCode?, taxType? }]
+  lineItems     String    @default("[]")
+  subtotal      Float     @default(0)
+  tax           Float     @default(0)
+  total         Float     @default(0)
+  amountPaid    Float     @default(0)
+  amountDue     Float     @default(0)
+  reference     String?   // shown on the Xero invoice (usually the job reference)
+  // Xero mirror — null until pushed.
+  xeroInvoiceId String?   @unique
+  xeroContactId String?
+  xeroNumber    String?   // Xero may renumber when org auto-numbering is on
+  lastSyncedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// A business expense captured from a receipt photo. Vision extracts the vendor/
+// date/amount/GST; optionally pushed to Xero as a spend-money BankTransaction
+// (with the receipt image attached) so it's a one-tap reconcile against the bank
+// feed. total is GST-inclusive; gst is the 1B credit; net = total - gst.
+model Expense {
+  id            String    @id @default(cuid())
+  vendor        String?
+  description   String?
+  category      String?   // free-form, e.g. Materials / Fuel / Tools
+  date          DateTime  @default(now())
+  currency      String    @default("AUD")
+  total         Float     @default(0) // GST-inclusive amount paid
+  gst           Float     @default(0) // GST portion (BAS 1B)
+  net           Float     @default(0) // total - gst
+  hasGst        Boolean   @default(true)
+  status        String    @default("captured") // captured | pushed
+  jobId         String?
+  job           Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  // Receipt image, stored inline (downscaled client-side before upload).
+  receiptData   String?   // base64, no data: prefix
+  receiptMime   String?   // e.g. image/jpeg
+  // Xero mirror — null until pushed.
+  xeroBankTransactionId String? @unique
+  xeroContactId String?
+  pushedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([date])
+}
+
+// A PDF (or other file) saved from email into Google Drive, linked to a job.
+model Document {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name        String
+  driveFileId String?
+  webViewLink String?
+  source      String   @default("gmail") // gmail | upload | report
+  mimeType    String   @default("application/pdf")
+  createdAt   DateTime @default(now())
+}
+
+model MaintenanceReport {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status      String   @default("draft") // draft | sent
+  // Who filed it — set when a report comes in via the installer portal.
+  installerId String?
+  installer   Installer? @relation(fields: [installerId], references: [id], onDelete: SetNull)
+  // Free-form report fields stored as JSON (engineer, findings, actions, recommendations, etc.)
+  data        String   @default("{}")
+  pdfPath     String?
+  driveFileId String?
+  webViewLink String?
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Audit trail surfaced in the UI: what automations ran for a job.
+model Activity {
+  id        String   @id @default(cuid())
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  type      String   // status_change | calendar | drive | email | report | note | invoice | expense | xero
+  message   String
+  meta      String   @default("{}")
+  createdAt DateTime @default(now())
+}
+
+// Record of every lead email we've already scanned (even if it produced no
+// jobs), so non-job emails aren't reprocessed (and re-charged) every scan.
+model ProcessedEmail {
+  id          String   @id @default(cuid())
+  messageId   String   @unique
+  jobsCreated Int      @default(0)
+  reason      String?  // e.g. "maintenance", "no_new_jobs"
+  createdAt   DateTime @default(now())
+}
+
+// Trusted senders whose emails are turned into job leads to approve. These are
+// the client companies the owner works for (email holds their domain).
+model LeadSource {
+  id          String   @id @default(cuid())
+  name        String
+  displayName String?  // pretty client label, e.g. "Bellbrook Homes"
+  email       String   @unique
+  enabled     Boolean  @default(true)
+  templates   String?  // JSON: per-company email overrides keyed by accepted|moved|cancelled
+  createdAt   DateTime @default(now())
+}
+
+// Rate card: the install components the owner charges for. Each item has a
+// default price plus optional per-company overrides (JSON keyed by
+// LeadSource.id — same JSON-string precedent as LeadSource.templates).
+model PriceItem {
+  id            String   @id @default(cuid())
+  name          String            // e.g. "Base cabinet install"
+  unit          String   @default("each") // each | hour | metre
+  price         Float    @default(0)      // default rate (ex GST)
+  category      String?           // optional grouping, e.g. Kitchen
+  companyPrices String   @default("{}")   // JSON { [leadSourceId]: price }
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Web Push subscriptions (one per device that opted in to notifications).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+// Editable templates for the automated client emails.
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  key       String   @unique // accepted | cancelled | moved | report
+  subject   String
+  body      String
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}

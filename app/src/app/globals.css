@@ -1,0 +1,303 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
+}
+
+/* The app scrolls inside .app-scroll rather than the document. With the
+   document unable to scroll, iOS Safari never collapses/expands its toolbars
+   while browsing — so the fixed bottom dock genuinely stays put during
+   scrolling (it used to ride the toolbar resize up and down). */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.app-scroll {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Smooth in-page scrolling (anchors, scrollIntoView) — off for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Soft neutral gradient "table" the frosted cards float on — a calm light-gray
+   wash (palette #DEDEDE) lifting toward white, with a faint warm orange bloom in
+   one corner so the accent quietly tints the glass. */
+body {
+  @apply text-slate-800 antialiased;
+  background-color: #e6e6e6;
+  background-image:
+    radial-gradient(120% 80% at 100% 0%, rgba(242, 86, 35, 0.07) 0%, rgba(242, 86, 35, 0) 45%),
+    radial-gradient(100% 70% at 0% 0%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(160deg, #ededed 0%, #dedede 55%, #d4d4d4 100%);
+  background-attachment: fixed;
+}
+html.dark body {
+  @apply text-slate-200;
+  background-color: #0d0d0d;
+  background-image:
+    radial-gradient(120% 80% at 100% 0%, rgba(242, 86, 35, 0.1) 0%, rgba(242, 86, 35, 0) 45%),
+    radial-gradient(90% 60% at 0% 0%, rgba(77, 77, 77, 0.25) 0%, rgba(77, 77, 77, 0) 55%),
+    linear-gradient(160deg, #1a1a1a 0%, #121212 55%, #0d0d0d 100%);
+  background-attachment: fixed;
+}
+
+::selection {
+  @apply bg-brand-200 text-brand-900;
+}
+html.dark ::selection {
+  @apply bg-brand-700 text-white;
+}
+
+/* Match native form controls / scrollbars to the active theme. */
+html.dark {
+  color-scheme: dark;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Gentle entrance for page content. */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-in {
+  animation: fadeInUp 0.28s ease-out both;
+}
+
+/* Per-route entrance — applied by app/template.tsx so every screen slides up
+   into place on navigation (re-mounts on each route change). */
+@keyframes routeFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.route-fade {
+  animation: routeFade 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Bar fill — grows from the left on mount (progress / workload bars). */
+@keyframes growX {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.grow-x {
+  transform-origin: left;
+  animation: growX 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Toast / banner drop-in from the top. */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: none; }
+}
+.toast-in {
+  animation: toastIn 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered list entrance — apply `stagger` to a list container. */
+.stagger > * {
+  animation: fadeInUp 0.34s ease-out both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(n + 7) { animation-delay: 0.26s; }
+
+/* Bottom-sheet rise — replays when its `key` changes (e.g. a new date tapped). */
+@keyframes sheetRise {
+  from { opacity: 0.35; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.sheet-rise {
+  animation: sheetRise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Height cap for modal sheets. iOS measures vh against the LARGE viewport
+   (URL bar collapsed), so a 85vh sheet plus the 6rem gap above the dock
+   overflowed the real screen and pushed the title off the top. dvh tracks
+   the actual visible height; the vh line is the older-browser fallback.
+   Mobile leaves room for the dock gap below and breathing space above;
+   sm+ dialogs are centered so they only need a small margin. */
+.sheet-cap {
+  max-height: 76vh;
+  max-height: calc(100dvh - 8rem);
+}
+@media (min-width: 640px) {
+  .sheet-cap {
+    max-height: 85vh;
+    max-height: calc(100dvh - 3rem);
+  }
+}
+
+/* Loading skeleton with a moving sheen (feels faster than a static pulse). */
+@keyframes shimmer {
+  100% { background-position: -200% 0; }
+}
+.skeleton {
+  background-image: linear-gradient(100deg, #dedede 30%, #f2f2f2 50%, #dedede 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+html.dark .skeleton {
+  background-image: linear-gradient(100deg, #1f1f1f 30%, #2c2c2c 50%, #1f1f1f 70%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .stagger > *,
+  .sheet-rise,
+  .route-fade,
+  .toast-in,
+  .grow-x,
+  .skeleton {
+    animation: none !important;
+  }
+  /* No lift/scale transforms when the user prefers reduced motion. */
+  .tap {
+    @apply transition-none hover:translate-y-0 hover:shadow-none active:scale-100;
+  }
+}
+
+/* iOS Safari auto-zooms the page when a focused form control's text is under
+   16px — and while zoomed, position:fixed elements (the bottom dock) stop
+   tracking the viewport and float around mid-page. Keeping form text at 16px
+   on touch-sized screens means the zoom never triggers; desktop keeps the
+   compact sizes. !important because it must beat utility classes like
+   .text-sm on the same element. */
+@media (max-width: 1023px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Hide scrollbars on horizontal chip rows but keep scrolling. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth, tap-friendly buttons on mobile. */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  /* ---- Buttons: pill-shaped (bento style) ---------------------------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none
+      outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-offset-night-950;
+  }
+  /* Dominant action: solid ink pill (inverts in dark so it stays prominent). */
+  .btn-primary {
+    @apply btn bg-ink text-white hover:bg-ink-800 shadow-sm
+      dark:bg-white dark:text-ink dark:hover:bg-slate-200;
+  }
+  /* Accent action: teal pill — for the one brand-coloured CTA on a screen. */
+  .btn-accent {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50
+      dark:bg-night-850 dark:text-slate-200 dark:ring-night-line dark:hover:bg-night-800;
+  }
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-night-800;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  /* Low-emphasis destructive action: tinted, not solid. Pairs with .btn-danger. */
+  .btn-danger-soft {
+    @apply btn bg-red-50 text-red-700 hover:bg-red-100
+      dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25;
+  }
+
+  /* ---- Frosted glass -------------------------------------------------- */
+  /* Reusable frosted panel: translucent surface + blur + crisp 1px rim, so it
+     reads as glass floating on the gradient table. The backdrop-blur gives the
+     "frosted" look from the reference. */
+  .glass {
+    @apply bg-white/65 backdrop-blur-xl ring-1 ring-inset ring-white/60 shadow-glass
+      dark:bg-night-900/55 dark:ring-white/10 dark:shadow-glass-dark;
+  }
+
+  /* ---- Bento surfaces ------------------------------------------------- */
+  /* Standard tile: frosted glass with large radius. Everything uses this, so the
+     whole app picks up the frosted look in one place. */
+  .card {
+    @apply rounded-bento glass p-5 transition duration-200 ease-out;
+  }
+  /* Opaque variant — for surfaces that sit on top of other glass (menus,
+     sheets) where stacked translucency would muddy the text. */
+  .card-solid {
+    @apply rounded-bento bg-white p-5 shadow-bento transition duration-200 ease-out
+      dark:bg-night-900 dark:shadow-none dark:ring-1 dark:ring-night-line;
+  }
+  /* Add to a tappable card/row: gentle lift on hover, springy press on tap. */
+  .tap {
+    @apply transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0 active:scale-[0.985];
+  }
+  /* Pale-orange accent tile (the "hero" card) — tinted frosted glass. */
+  .card-hero {
+    @apply rounded-bento bg-brand-100/70 backdrop-blur-xl p-5 text-brand-950 ring-1 ring-inset ring-white/50 shadow-glass
+      dark:bg-brand-500/10 dark:text-brand-50 dark:ring-brand-500/20 dark:shadow-glass-dark;
+  }
+  /* Dark accent tile for emphasis (stats / revenue) — dark in both themes. */
+  .card-dark {
+    @apply rounded-bento bg-ink p-5 text-white shadow-bento
+      dark:bg-night-850 dark:shadow-none dark:ring-1 dark:ring-night-line;
+  }
+
+  /* ---- Bento grid helpers (mobile two-column) ------------------------ */
+  .bento {
+    @apply grid grid-cols-2 gap-3;
+  }
+  .bento-wide {
+    grid-column: span 2;
+  }
+
+  /* ---- Forms --------------------------------------------------------- */
+  .input {
+    @apply w-full rounded-2xl border-0 bg-white/60 backdrop-blur px-4 py-2.5 text-sm text-slate-900 ring-1 ring-inset ring-white/70 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none
+      dark:bg-night-850/70 dark:text-slate-100 dark:ring-night-line dark:placeholder:text-slate-500 dark:focus:bg-night-850;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5 dark:text-slate-400;
+  }
+  /* Small uppercase eyebrow label used on bento tiles. */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400;
+  }
+}
