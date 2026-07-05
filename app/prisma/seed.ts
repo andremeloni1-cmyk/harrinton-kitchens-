@@ -564,6 +564,58 @@ async function main() {
     await visit(doyleJob.id, "Electrician — disconnect", "Macarthur Electrical", at(6, 10, 0));
   }
 
+  // ---- Factory hardware store (QR-label stock tracker) ----
+  const HW: Array<{
+    code: string; name: string; category: string; supplier: string; unit?: string;
+    packSize?: string; qtyOnHand: number; reorderLevel?: number; location: string;
+    orderStatus?: string; orderQty?: number; orderNote?: string;
+  }> = [
+    { code: "HW-1001", name: "Blum 110° soft-close hinge", category: "Hinges", supplier: "Blum", packSize: "50 pcs", qtyOnHand: 6, reorderLevel: 2, location: "A1" },
+    { code: "HW-1002", name: "Blum Tandembox drawer runner 500mm", category: "Runners", supplier: "Blum", packSize: "10 sets", qtyOnHand: 4, reorderLevel: 2, location: "A2" },
+    { code: "HW-1003", name: "Titus cabinet connector bolts", category: "Fixings", supplier: "Hafele", packSize: "200 pcs", qtyOnHand: 1, reorderLevel: 2, location: "B1" },
+    { code: "HW-1004", name: "8G x 30mm CSK screws", category: "Fixings", supplier: "Bremick", packSize: "1000 pcs", qtyOnHand: 3, reorderLevel: 1, location: "B2" },
+    { code: "HW-1005", name: "Brushed brass bar handle 160mm", category: "Handles", supplier: "Momo Handles", packSize: "25 pcs", qtyOnHand: 0, reorderLevel: 1, location: "C1", orderStatus: "needs_order", orderQty: 2, orderNote: "Mitchell + Doyle jobs both use these" },
+    { code: "HW-1006", name: "Matte black round knob", category: "Handles", supplier: "Momo Handles", packSize: "25 pcs", qtyOnHand: 2, reorderLevel: 1, location: "C2" },
+    { code: "HW-1007", name: "Translucent silicone (kitchen grade)", category: "Sealants", supplier: "Bostik", unit: "tube", packSize: "300ml", qtyOnHand: 5, reorderLevel: 6, location: "D1" },
+    { code: "HW-1008", name: "Kickboard clips", category: "Fixings", supplier: "Hafele", packSize: "100 pcs", qtyOnHand: 0, reorderLevel: 1, location: "B3", orderStatus: "on_order", orderQty: 3 },
+    { code: "HW-1009", name: "Soft-close pantry runners 450mm", category: "Runners", supplier: "Hettich", packSize: "10 sets", qtyOnHand: 7, reorderLevel: 2, location: "A3" },
+    { code: "HW-1010", name: "Edge banding — Polar White 22mm", category: "Boards & edging", supplier: "Polytec", unit: "roll", packSize: "50m", qtyOnHand: 2, reorderLevel: 1, location: "E1" },
+  ];
+  for (const h of HW) {
+    const item = await prisma.hardwareItem.create({
+      data: {
+        code: h.code,
+        name: h.name,
+        category: h.category,
+        supplier: h.supplier,
+        unit: h.unit || "box",
+        packSize: h.packSize || null,
+        qtyOnHand: h.qtyOnHand,
+        reorderLevel: h.reorderLevel ?? 1,
+        location: h.location,
+        orderStatus: h.orderStatus || "ok",
+        orderQty: h.orderQty ?? null,
+        orderNote: h.orderNote || null,
+        flaggedAt: h.orderStatus ? at(-1, 14, 20) : null,
+        orderedAt: h.orderStatus === "on_order" ? at(0, 8, 10) : null,
+      },
+    });
+    // A touch of history so scans have context.
+    await prisma.hardwareEvent.create({
+      data: { itemId: item.id, type: "delivered", qty: Math.max(1, h.qtyOnHand), createdAt: at(-9, 10, 0) },
+    });
+    if (h.orderStatus) {
+      await prisma.hardwareEvent.create({
+        data: { itemId: item.id, type: "flagged", qty: h.orderQty ?? 1, note: h.orderNote || null, createdAt: at(-1, 14, 20) },
+      });
+    }
+    if (h.orderStatus === "on_order") {
+      await prisma.hardwareEvent.create({
+        data: { itemId: item.id, type: "ordered", qty: h.orderQty ?? 1, createdAt: at(0, 8, 10) },
+      });
+    }
+  }
+
   // ---- A little activity history so the feeds aren't empty ----
   const log = (jobId: string, type: string, message: string, minsAgo: number) =>
     prisma.activity.create({
@@ -578,7 +630,7 @@ async function main() {
   await log(fletcherJob.id, "report", "Maintenance report sent to Emma Fletcher", 60 * 96);
   await log(chenRequest.id, "note", "Maintenance visit requested by Robert Chen via the client portal.", 60 * 3);
 
-  console.log("Seeded Harrington Kitchens demo data: 4 installers, 6 clients, 9 jobs, 2 reports.");
+  console.log("Seeded Harrington Kitchens demo data: 4 installers, 6 clients, 9 jobs, 2 reports, 10 hardware lines.");
 }
 
 main()

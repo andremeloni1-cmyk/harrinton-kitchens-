@@ -37,6 +37,19 @@ const links = [
     ),
   },
   {
+    href: "/hardware",
+    title: "Hardware & stock",
+    subtitle: "Scan QR labels to book in deliveries and build the order list",
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <path d="M14 14h3v3h-3zM18 18h3v3h-3z" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/insights",
     title: "Business insights",
     subtitle: "Money in, by company, and your GST / BAS summary",

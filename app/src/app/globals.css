@@ -301,3 +301,24 @@ a {
     @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400;
   }
 }
+
+/* Printing (hardware label sheets): hide the app chrome and let the document
+   flow/paginate naturally instead of scrolling inside .app-scroll. */
+@media print {
+  nav,
+  aside {
+    display: none !important;
+  }
+  .app-scroll {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding-left: 0 !important;
+  }
+  main {
+    padding-bottom: 0 !important;
+  }
+  body {
+    background: #fff !important;
+  }
+}

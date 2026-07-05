@@ -340,6 +340,44 @@ model PushSubscription {
   createdAt DateTime @default(now())
 }
 
+// A stock line in the factory hardware store (hinges, runners, screws…).
+// Each line gets a printable QR label; scanning it with a phone opens the
+// item's action page to log a delivery or flag it for reordering.
+model HardwareItem {
+  id           String   @id @default(cuid())
+  code         String   @unique // short label code in the QR, e.g. HW-1007
+  name         String
+  category     String?  // Hinges / Runners / Fixings / Sealants…
+  supplier     String?
+  unit         String   @default("box") // box | pack | each | roll | tube
+  packSize     String?  // e.g. "100 pcs" — printed on the label
+  qtyOnHand    Int      @default(0)
+  reorderLevel Int      @default(1) // at/below this the list suggests reordering
+  location     String?  // shelf / bay in the factory
+  notes        String?
+  // Ordering loop: ok -> needs_order (scan when empty) -> on_order (office
+  // marks ordered) -> ok again when the delivery is scanned in.
+  orderStatus  String   @default("ok")
+  orderQty     Int?     // how many to order when flagged
+  orderNote    String?
+  flaggedAt    DateTime?
+  orderedAt    DateTime?
+  events       HardwareEvent[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Audit trail per hardware line: deliveries in, reorder flags, orders placed.
+model HardwareEvent {
+  id        String       @id @default(cuid())
+  itemId    String
+  item      HardwareItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type      String       // delivered | flagged | ordered | adjusted
+  qty       Int?
+  note      String?
+  createdAt DateTime     @default(now())
+}
+
 // Editable templates for the automated client emails.
 model EmailTemplate {
   id        String   @id @default(cuid())

@@ -12,7 +12,7 @@ const items = [
   { href: "/installers", label: "Installers", icon: HardHatIcon },
   { href: "/clients", label: "Clients", icon: UsersIcon },
   { href: "/reports", label: "Reports", icon: ReportIcon },
-  { href: "/more", label: "More", icon: DotsIcon, match: ["/more", "/settings", "/insights", "/invoices", "/pnl", "/prices", "/expenses"] },
+  { href: "/more", label: "More", icon: DotsIcon, match: ["/more", "/settings", "/insights", "/invoices", "/pnl", "/prices", "/expenses", "/hardware"] },
 ];
 
 // The client & installer portals are standalone (their own chrome) — no admin nav.
