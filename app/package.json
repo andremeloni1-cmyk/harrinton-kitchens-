@@ -1,0 +1,52 @@
+{
+  "name": "harrington-kitchens",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Harrington Kitchens — mobile-first dashboard to schedule kitchen installations and manage installers, with Google Calendar / Drive / Gmail automations.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && prisma migrate deploy && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "google-auth-library": "^10.9.0",
+    "glob": "^10.5.0",
+    "postcss": "^8.5.10"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.106.0",
+    "@prisma/client": "^5.22.0",
+    "googleapis": "^173.0.0",
+    "next": "16.2.9",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.11",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/web-push": "^3.6.4",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "16.2.9",
+    "postcss": "^8.5.10",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.14",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}
