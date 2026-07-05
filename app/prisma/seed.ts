@@ -1,6 +1,43 @@
 import { PrismaClient } from "@prisma/client";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
 const prisma = new PrismaClient();
+
+// A simple kitchen floor-plan-style PDF so the portal's plan review has a real
+// document to open (title block + cabinetry runs + island).
+async function makePlanPdf(title: string, revision: string): Promise<string> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([842, 595]); // A4 landscape
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const teal = rgb(0.05, 0.58, 0.53);
+  const ink = rgb(0.11, 0.1, 0.09);
+  const line = rgb(0.55, 0.53, 0.5);
+
+  // Title block
+  page.drawRectangle({ x: 0, y: 555, width: 842, height: 40, color: teal });
+  page.drawText("HARRINGTON KITCHENS", { x: 30, y: 568, size: 14, font: bold, color: rgb(1, 1, 1) });
+  page.drawText(`${title}  ·  ${revision}  ·  Scale 1:50 (indicative)`, { x: 250, y: 568, size: 11, font, color: rgb(1, 1, 1) });
+
+  // Room outline
+  page.drawRectangle({ x: 80, y: 90, width: 680, height: 400, borderColor: ink, borderWidth: 2 });
+  // Cabinetry runs (L-shape) + island
+  page.drawRectangle({ x: 90, y: 100, width: 60, height: 380, borderColor: teal, borderWidth: 1.5 });
+  page.drawRectangle({ x: 90, y: 100, width: 560, height: 60, borderColor: teal, borderWidth: 1.5 });
+  page.drawRectangle({ x: 300, y: 250, width: 240, height: 90, borderColor: teal, borderWidth: 1.5 });
+  page.drawText("ISLAND 2400 x 900", { x: 340, y: 290, size: 10, font, color: ink });
+  page.drawText("TALL/PANTRY RUN", { x: 96, y: 460, size: 8, font, color: ink, rotate: undefined });
+  page.drawText("BASE RUN + APPLIANCES", { x: 300, y: 125, size: 10, font, color: ink });
+  // Appliance markers
+  for (const [x, label] of [[180, "DW"], [260, "OVEN"], [420, "SINK"], [560, "FRIDGE"]] as [number, string][]) {
+    page.drawRectangle({ x, y: 105, width: 50, height: 50, borderColor: line, borderWidth: 1 });
+    page.drawText(label, { x: x + 8, y: 128, size: 8, font, color: line });
+  }
+  page.drawText("Indicative demo drawing — not for construction", { x: 80, y: 60, size: 9, font, color: line });
+
+  const bytes = await doc.save();
+  return Buffer.from(bytes).toString("base64");
+}
 
 const DEFAULT_TEMPLATES = [
   {
@@ -457,6 +494,75 @@ async function main() {
       }),
     },
   });
+
+  // ---- Plans shared to the client portal (with review states) ----
+  await prisma.document.create({
+    data: {
+      jobId: mitchellJob.id,
+      name: "Mitchell — Kitchen Plan Rev C.pdf",
+      source: "plan",
+      mimeType: "application/pdf",
+      fileData: await makePlanPdf("MITCHELL RESIDENCE — KITCHEN", "REV C"),
+      sharedWithClient: true,
+      reviewStatus: "approved",
+      reviewedAt: at(-2, 19, 15),
+    },
+  });
+  const hollowayJob = await prisma.job.findUnique({ where: { reference: "JOB-1004" } });
+  if (hollowayJob) {
+    await prisma.document.create({
+      data: {
+        jobId: hollowayJob.id,
+        name: "Holloway — Island & Butler's Pantry Rev A.pdf",
+        source: "plan",
+        mimeType: "application/pdf",
+        fileData: await makePlanPdf("HOLLOWAY RESIDENCE — ISLAND & PANTRY", "REV A"),
+        sharedWithClient: true,
+        reviewStatus: "pending",
+      },
+    });
+  }
+  const doyleJob = await prisma.job.findUnique({ where: { reference: "JOB-1005" } });
+  if (doyleJob) {
+    await prisma.document.create({
+      data: {
+        jobId: doyleJob.id,
+        name: "Doyle — Kitchen Plan Rev A.pdf",
+        source: "plan",
+        mimeType: "application/pdf",
+        fileData: await makePlanPdf("DOYLE RESIDENCE — KITCHEN", "REV A"),
+        sharedWithClient: true,
+        reviewStatus: "changes_requested",
+        reviewNote: "Could the corner pantry be 100mm deeper, and the microwave moved into the island?",
+        reviewedAt: at(-1, 20, 40),
+      },
+    });
+  }
+
+  // ---- Trade site schedules (shown on the client portal & installer portal) ----
+  const visit = (
+    jobId: string,
+    trade: string,
+    company: string | null,
+    start: Date,
+    notes: string | null = null,
+    status = "scheduled"
+  ) => prisma.tradeVisit.create({ data: { jobId, trade, company, scheduledStart: start, notes, status } });
+
+  await visit(mitchellJob.id, "Final site measure", "Harrington Kitchens", at(-3, 9, 0), null, "done");
+  await visit(mitchellJob.id, "Plumber — disconnect & cap off", "Camden Plumbing Co", at(1, 7, 0), "Before cabinetry starts");
+  await visit(mitchellJob.id, "Electrician — disconnect", "Macarthur Electrical", at(1, 8, 0));
+  await visit(mitchellJob.id, "Stone templater", "Stoneworx Benchtops", at(4, 9, 0), "Cabinets must be set first");
+  await visit(mitchellJob.id, "Plumber — reconnect & fit-off", "Camden Plumbing Co", at(8, 13, 0), "After stone install");
+
+  await visit(patelJob.id, "Plumber — reconnect sink & dishwasher", "Camden Plumbing Co", at(1, 9, 0));
+  await visit(patelJob.id, "Electrician — cooktop & pendants", "Macarthur Electrical", at(1, 11, 0));
+
+  if (doyleJob) {
+    await visit(doyleJob.id, "Strip-out crew", "Harrington Kitchens", at(6, 7, 0), "Old kitchen removal");
+    await visit(doyleJob.id, "Plumber — disconnect", "Camden Plumbing Co", at(6, 9, 0));
+    await visit(doyleJob.id, "Electrician — disconnect", "Macarthur Electrical", at(6, 10, 0));
+  }
 
   // ---- A little activity history so the feeds aren't empty ----
   const log = (jobId: string, type: string, message: string, minsAgo: number) =>

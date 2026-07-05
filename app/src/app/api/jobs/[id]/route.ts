@@ -14,7 +14,15 @@ export async function GET(_req: Request, { params }: Params) {
   const job = await prisma.job.findUnique({
     where: { id: (await params).id },
     include: {
-      documents: { orderBy: { createdAt: "desc" } },
+      // Never pull fileData here — inline plan bytes would bloat every job load.
+      documents: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, name: true, webViewLink: true, source: true, mimeType: true, createdAt: true,
+          sharedWithClient: true, reviewStatus: true, reviewNote: true, reviewedAt: true,
+        },
+      },
+      tradeVisits: { orderBy: { scheduledStart: "asc" } },
       installer: { select: { id: true, name: true, color: true } },
       reports: { orderBy: { createdAt: "desc" } },
       invoices: { orderBy: { createdAt: "desc" } },

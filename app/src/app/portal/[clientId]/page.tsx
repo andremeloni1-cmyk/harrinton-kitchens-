@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { fmtDay, fmtRange, relativeTime } from "@/lib/format";
+import { fmtDay, fmtRange, fmtTime, relativeTime } from "@/lib/format";
 import { MaintenanceRequestForm } from "@/components/MaintenanceRequestForm";
+import { PortalPlanReview } from "@/components/PortalPlanReview";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,15 @@ export default async function ClientPortalPage({ params }: { params: Promise<{ c
         include: {
           installer: { select: { name: true, role: true, color: true } },
           reports: { where: { status: "sent" }, orderBy: { sentAt: "desc" } },
+          documents: {
+            where: { sharedWithClient: true, source: "plan" },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, name: true, reviewStatus: true, reviewedAt: true },
+          },
+          tradeVisits: {
+            where: { status: { not: "cancelled" } },
+            orderBy: { scheduledStart: "asc" },
+          },
         },
       },
     },
@@ -108,6 +118,51 @@ export default async function ClientPortalPage({ params }: { params: Promise<{ c
                   </ol>
                 )}
               </div>
+
+              {/* Plans to review */}
+              {job.documents.length > 0 && (
+                <div className="space-y-2.5 border-t border-stone-100 px-4 py-3.5 dark:border-night-line">
+                  <p className="text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-slate-500">Your plans</p>
+                  {job.documents.map((d) => (
+                    <PortalPlanReview
+                      key={d.id}
+                      clientId={client.id}
+                      plan={{ ...d, reviewedAt: d.reviewedAt ? d.reviewedAt.toISOString() : null }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Who's coming to site */}
+              {job.tradeVisits.length > 0 && (
+                <div className="border-t border-stone-100 px-4 py-3.5 dark:border-night-line">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-slate-500">
+                    Who&apos;s coming to your home
+                  </p>
+                  <ol className="space-y-2">
+                    {job.tradeVisits.map((v) => (
+                      <li key={v.id} className="flex items-center gap-3 text-sm">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${v.status === "done" ? "bg-emerald-500" : "bg-sky-500"}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-stone-800 dark:text-slate-100">
+                            {v.trade}
+                            {v.company && <span className="font-normal text-stone-500 dark:text-slate-400"> · {v.company}</span>}
+                          </p>
+                          <p className="truncate text-xs text-stone-400 dark:text-slate-500">
+                            {v.status === "done" ? "Completed · " : ""}
+                            {fmtDay(v.scheduledStart)} · from {fmtTime(v.scheduledStart)}
+                            {v.notes ? ` · ${v.notes}` : ""}
+                          </p>
+                        </div>
+                        {v.status === "done" && <span className="shrink-0 text-xs font-semibold text-emerald-600 dark:text-emerald-400">✓</span>}
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="mt-2 text-[11px] text-stone-400 dark:text-slate-500">
+                    Times are approximate — each trade will knock/ring when they arrive.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2.5 border-t border-stone-100 px-4 py-3.5 text-sm dark:border-night-line">
                 {job.scheduledStart && (

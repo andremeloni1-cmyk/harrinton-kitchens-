@@ -10,6 +10,8 @@ import { JobForm } from "@/components/JobForm";
 import { ReportEditor } from "@/components/ReportEditor";
 import { RescheduleModal } from "@/components/RescheduleModal";
 import { Checklist } from "@/components/Checklist";
+import { PlanReview } from "@/components/PlanReview";
+import { TradeSchedule } from "@/components/TradeSchedule";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { PriceItemPicker } from "@/components/PriceItemPicker";
 import { fmtMoney, fmtDay, fmtRange, relativeTime } from "@/lib/format";
@@ -548,6 +550,16 @@ export default function JobDetailPage() {
         />
       </Section>
 
+      {/* Plans for client review */}
+      <Section title="Plans — client review">
+        <PlanReview jobId={job.id} plans={(job.documents || []).filter((d) => d.source === "plan")} onChanged={load} />
+      </Section>
+
+      {/* Trade site schedule */}
+      <Section title="Trade schedule">
+        <TradeSchedule jobId={job.id} visits={job.tradeVisits || []} onChanged={load} />
+      </Section>
+
       {/* Documents */}
       <Section
         title="Documents"
@@ -569,9 +581,9 @@ export default function JobDetailPage() {
           </div>
         }
       >
-        {job.documents && job.documents.filter((d) => d.source !== "upload").length > 0 ? (
+        {job.documents && job.documents.filter((d) => !["upload", "plan"].includes(d.source)).length > 0 ? (
           <ul className="space-y-2">
-            {job.documents.filter((d) => d.source !== "upload").map((d) => (
+            {job.documents.filter((d) => !["upload", "plan"].includes(d.source)).map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-3">
                 <span className="flex min-w-0 items-center gap-2 text-sm text-stone-700 dark:text-slate-200">
                   <span>📄</span>

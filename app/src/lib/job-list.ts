@@ -10,7 +10,10 @@ export async function jobListQuery(where: Record<string, unknown> = {}) {
       where,
       orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
       include: {
-        documents: true,
+        // No fileData — inline plan bytes would bloat the whole job list.
+        documents: {
+          select: { id: true, name: true, webViewLink: true, source: true, createdAt: true, sharedWithClient: true, reviewStatus: true },
+        },
         installer: { select: { id: true, name: true, color: true } },
         reports: {
           orderBy: { updatedAt: "desc" },

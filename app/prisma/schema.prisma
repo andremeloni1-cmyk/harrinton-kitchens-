@@ -152,6 +152,7 @@ model Job {
   drivePhotosFolderId String? // shared "Photos (client)" subfolder (anyone-with-link)
 
   documents    Document[]
+  tradeVisits  TradeVisit[]
   reports      MaintenanceReport[]
   activities   Activity[]
   invoices     Invoice[]
@@ -237,7 +238,31 @@ model Document {
   webViewLink String?
   source      String   @default("gmail") // gmail | upload | report
   mimeType    String   @default("application/pdf")
+  // Inline file bytes (base64) for plans uploaded through the dashboard, so
+  // the client portal can serve them without Google Drive.
+  fileData    String?
+  // Plan review: share a plan to the client's portal and track their response.
+  sharedWithClient Boolean  @default(false)
+  reviewStatus     String?  // pending | approved | changes_requested
+  reviewNote       String?  // the client's comment when requesting changes
+  reviewedAt       DateTime?
   createdAt   DateTime @default(now())
+}
+
+// A trade visit booked against a job's site (plumber, electrician, stone
+// templater…). Shown to the client on their portal and to the installer.
+model TradeVisit {
+  id             String    @id @default(cuid())
+  jobId          String
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  trade          String    // e.g. Plumber
+  company        String?   // e.g. Camden Plumbing Co
+  scheduledStart DateTime
+  scheduledEnd   DateTime?
+  notes          String?
+  status         String    @default("scheduled") // scheduled | done | cancelled
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model MaintenanceReport {

@@ -12,7 +12,7 @@ APIs (Calendar, Drive, Gmail).
 |---|---------|-----|
 | 1 | **Job scheduling** | Jobs flow lead → confirmed → scheduled → in progress → completed. Drag on the calendar to reschedule; accepting a job creates a Google Calendar event with the client, address and document links. |
 | 2 | **Installer management** | The *Installers* tab lists the team with weekly workload bars and run sheets. Assign an installer on any job — their name shows on job cards, the calendar and the client portal. |
-| 3 | **Client portal** (`/portal`) | Each client gets a no-login page: progress tracker per project, install dates, who their installer is, sent report PDFs, and a maintenance-request form that lands on the dashboard as a job to confirm. |
+| 3 | **Client portal** (`/portal`) | Each client gets a no-login page: progress tracker per project, install dates, who their installer is, **plans to review** (view, approve or request changes — responses land on the dashboard), a **"who's coming to your home" trade schedule**, sent report PDFs, and a maintenance-request form that lands on the dashboard as a job to confirm. |
 | 4 | **Installer portal** (`/installer-portal`) | Installers open their run sheet on their phone: today's jobs, directions, site contact, install checklists, start/complete actions — and they file the branded maintenance-report PDF from site (recorded against their name). |
 | 5 | **Maintenance reports per job** | Fill out a report (rooms, checklists, sign-off signature), generate a branded PDF, save it to Drive and email it to the client in one tap. |
 | 6 | **Automations** | Accept / move / cancel each send a templated email from your Gmail; job PDFs from email are filed to Drive; incoming jobs from trusted builder senders appear as leads to approve. |

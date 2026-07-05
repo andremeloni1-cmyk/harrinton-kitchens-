@@ -34,6 +34,7 @@ export interface JobDTO {
   createdAt?: string;
   updatedAt?: string;
   documents?: DocumentDTO[];
+  tradeVisits?: TradeVisitDTO[];
   reports?: ReportDTO[];
   activities?: ActivityDTO[];
   invoices?: InvoiceDTO[];
@@ -77,7 +78,22 @@ export interface DocumentDTO {
   name: string;
   webViewLink?: string | null;
   source: string;
+  mimeType?: string;
   createdAt: string;
+  sharedWithClient?: boolean;
+  reviewStatus?: string | null; // pending | approved | changes_requested
+  reviewNote?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface TradeVisitDTO {
+  id: string;
+  trade: string;
+  company?: string | null;
+  scheduledStart: string;
+  scheduledEnd?: string | null;
+  notes?: string | null;
+  status: string; // scheduled | done | cancelled
 }
 
 export interface ReportDTO {

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { StatusPill } from "@/components/StatusPill";
 import { Checklist } from "@/components/Checklist";
 import { ReportEditor } from "@/components/ReportEditor";
-import { fmtDay, fmtRange } from "@/lib/format";
+import { fmtDay, fmtRange, fmtTime } from "@/lib/format";
 import { api, type JobDTO } from "@/lib/job";
 import { queueMutation } from "@/lib/offline-queue";
 import type { ChecklistItem } from "@/lib/pdf";
@@ -177,6 +177,32 @@ export default function InstallerJobPage() {
         )}
         {job.description && <p className="whitespace-pre-wrap text-stone-600 dark:text-slate-300">{job.description}</p>}
       </div>
+
+      {/* Other trades on this site */}
+      {(job.tradeVisits || []).filter((v) => v.status !== "cancelled").length > 0 && (
+        <Section title="Trades on site">
+          <ul className="space-y-2">
+            {(job.tradeVisits || [])
+              .filter((v) => v.status !== "cancelled")
+              .map((v) => (
+                <li key={v.id} className="flex items-center gap-3 text-sm">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${v.status === "done" ? "bg-emerald-500" : "bg-sky-500"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-stone-800 dark:text-slate-100">
+                      {v.trade}
+                      {v.company && <span className="font-normal text-stone-500 dark:text-slate-400"> · {v.company}</span>}
+                    </p>
+                    <p className="truncate text-xs text-stone-400 dark:text-slate-500">
+                      {v.status === "done" ? "Done · " : ""}
+                      {fmtDay(v.scheduledStart)} · from {fmtTime(v.scheduledStart)}
+                      {v.notes ? ` · ${v.notes}` : ""}
+                    </p>
+                  </div>
+                </li>
+              ))}
+          </ul>
+        </Section>
+      )}
 
       {/* Install checklist */}
       <Section title="Install checklist">
