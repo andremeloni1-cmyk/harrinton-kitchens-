@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: Params) {
 
   // Action: generate the PDF and (optionally) email it to the client.
   if (body.action === "generate" || body.action === "send") {
-    const account = await prisma.account.findFirst();
+    const account = await prisma.companySettings.findFirst();
 
     // Make sure the report's "Site photos" link points at a folder the client
     // can actually open. We only ever share the dedicated "Photos (client)"

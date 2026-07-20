@@ -267,9 +267,9 @@ export async function syncInvoiceStatuses(): Promise<{ updated: number }> {
     }
   }
 
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   if (account) {
-    await prisma.account.update({
+    await prisma.companySettings.update({
       where: { id: account.id },
       data: { xeroLastInvoiceSyncAt: new Date() },
     });

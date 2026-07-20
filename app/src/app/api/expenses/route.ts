@@ -12,7 +12,7 @@ export async function GET() {
   if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
   const [expenses, account, connected] = await Promise.all([
     prisma.expense.findMany({ orderBy: { date: "desc" } }),
-    prisma.account.findFirst(),
+    prisma.companySettings.findFirst(),
     isXeroConnected(),
   ]);
   return json({

@@ -37,10 +37,10 @@ export async function GET(req: Request) {
 
     const ownerEmail = process.env.OWNER_EMAIL || googleEmail || "owner@example.com";
     const account =
-      (await prisma.account.findFirst()) ??
-      (await prisma.account.create({ data: { email: ownerEmail } }));
+      (await prisma.companySettings.findFirst()) ??
+      (await prisma.companySettings.create({ data: { email: ownerEmail } }));
 
-    await prisma.account.update({
+    await prisma.companySettings.update({
       where: { id: account.id },
       data: {
         googleAccessToken: tokens.access_token || null,

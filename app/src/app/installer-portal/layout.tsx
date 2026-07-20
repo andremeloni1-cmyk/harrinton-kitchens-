@@ -7,7 +7,7 @@ import { BRAND } from "@/lib/brand";
 // themselves on /installer-portal). Built for a phone in a van. The business name
 // comes from CompanySettings (falls back to the platform brand).
 export default async function InstallerPortalLayout({ children }: { children: React.ReactNode }) {
-  const account = await prisma.account.findFirst({ select: { name: true } });
+  const account = await prisma.companySettings.findFirst({ select: { name: true } });
   const companyName = account?.name || BRAND.name;
   return (
     <div className="px-4 pb-16 pt-6">

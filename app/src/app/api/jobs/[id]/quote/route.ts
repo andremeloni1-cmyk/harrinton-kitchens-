@@ -41,7 +41,7 @@ export async function POST(_req: Request, { params }: Params) {
     );
   }
 
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   const source = job.companyId
     ? await prisma.leadSource.findUnique({ where: { id: job.companyId } })
     : null;

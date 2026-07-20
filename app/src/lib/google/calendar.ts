@@ -21,7 +21,7 @@ type JobLike = {
 };
 
 async function calendarId(): Promise<string> {
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   return account?.calendarId || "primary";
 }
 

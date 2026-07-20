@@ -98,7 +98,7 @@ export async function resolveTemplate(
   };
 
   let outBody = render(body, vars2);
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   const sig = account?.signature?.trim();
   if (sig) outBody += `\n\n${render(sig, vars2)}`;
 

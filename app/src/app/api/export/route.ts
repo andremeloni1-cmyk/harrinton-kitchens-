@@ -21,7 +21,7 @@ export async function GET() {
     prisma.leadSource.findMany(),
     prisma.priceItem.findMany(),
     prisma.maintenanceReport.findMany(),
-    prisma.account.findFirst(),
+    prisma.companySettings.findFirst(),
   ]);
 
   const backup = {

@@ -49,7 +49,7 @@ export function authUrl(state?: string): string {
 export async function getAuthorizedClient(): Promise<OAuth2Client | null> {
   if (!googleConfigured()) return null;
 
-  const account = await prisma.account.findFirst({
+  const account = await prisma.companySettings.findFirst({
     where: { googleRefreshToken: { not: null } },
   });
   if (!account?.googleRefreshToken) return null;
@@ -64,7 +64,7 @@ export async function getAuthorizedClient(): Promise<OAuth2Client | null> {
   // Persist refreshed tokens back to the DB.
   client.on("tokens", async (tokens) => {
     try {
-      await prisma.account.update({
+      await prisma.companySettings.update({
         where: { id: account.id },
         data: {
           googleAccessToken: tokens.access_token ?? account.googleAccessToken,
@@ -83,7 +83,7 @@ export async function getAuthorizedClient(): Promise<OAuth2Client | null> {
 }
 
 export async function isGoogleConnected(): Promise<boolean> {
-  const account = await prisma.account.findFirst({
+  const account = await prisma.companySettings.findFirst({
     where: { googleRefreshToken: { not: null } },
   });
   return Boolean(account?.googleRefreshToken);

@@ -11,7 +11,7 @@ import { jobEnd, businessTimeZone, WORK_START_HOUR, WORK_START_MIN } from "@/lib
 import type { Job } from "@prisma/client";
 
 async function ownerName(): Promise<string> {
-  const a = await prisma.account.findFirst();
+  const a = await prisma.companySettings.findFirst();
   return a?.name || "The Workshop";
 }
 

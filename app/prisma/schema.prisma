@@ -10,8 +10,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// The single owner account. Holds Google OAuth tokens once connected.
-model Account {
+// Singleton company/instance settings: branding, working hours, and the
+// Google/Xero OAuth tokens once connected. Renamed from `Account`; @@map keeps
+// the underlying table so no data migration is needed. User identity now lives
+// in the `User` model — `email` here is retained as the company contact address.
+model CompanySettings {
   id              String   @id @default(cuid())
   email           String   @unique
   name            String?
@@ -42,6 +45,40 @@ model Account {
   xeroExpenseAccountCode String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@map("Account")
+}
+
+// A staff member who signs in. Roles gate what they can see/do (see
+// src/lib/roles.ts + src/lib/permissions.ts). `role` is a String because SQLite
+// has no native enum. `credentialEpoch` is bumped on password reset/deactivate
+// to invalidate that user's existing session cookies without touching others.
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  passwordHash    String?  // null until the user sets a password (invite/reset flow)
+  role            String   @default("OFFICE") // ADMIN | OFFICE | DESIGNER | FACTORY | INSTALLER
+  active          Boolean  @default(true)
+  credentialEpoch Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([email])
+}
+
+// A pending invitation to join the team. The email carries a single-use link
+// whose token is stored only as a hash; accepting it sets the user's password.
+model Invite {
+  id        String    @id @default(cuid())
+  email     String
+  role      String    @default("OFFICE")
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
 }
 
 model Client {

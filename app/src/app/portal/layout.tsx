@@ -7,7 +7,7 @@ import { BRAND } from "@/lib/brand";
 // themselves on /portal). Clean, client-facing branding only. The business name
 // comes from CompanySettings (falls back to the platform brand).
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const account = await prisma.account.findFirst({ select: { name: true } });
+  const account = await prisma.companySettings.findFirst({ select: { name: true } });
   const companyName = account?.name || BRAND.name;
   return (
     <div className="px-4 pb-16 pt-6">

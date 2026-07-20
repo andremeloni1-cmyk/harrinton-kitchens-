@@ -118,7 +118,7 @@ export async function listConnections(accessToken: string): Promise<XeroConnecti
 }
 
 async function clearXeroConnection(accountId: string): Promise<void> {
-  await prisma.account.update({
+  await prisma.companySettings.update({
     where: { id: accountId },
     data: {
       xeroAccessToken: null,
@@ -147,7 +147,7 @@ async function refreshTokens(account: {
       })
     );
     // Persist the rotated refresh token before handing the access token out.
-    await prisma.account.update({
+    await prisma.companySettings.update({
       where: { id: account.id },
       data: {
         xeroAccessToken: tokens.accessToken,
@@ -184,7 +184,7 @@ export async function getXeroContext(
 ): Promise<{ accessToken: string; tenantId: string } | null> {
   if (!xeroConfigured()) return null;
 
-  const account = await prisma.account.findFirst({
+  const account = await prisma.companySettings.findFirst({
     where: { xeroRefreshToken: { not: null } },
   });
   if (!account?.xeroRefreshToken || !account.xeroTenantId) return null;
@@ -211,14 +211,14 @@ export async function getXeroContext(
 }
 
 export async function isXeroConnected(): Promise<boolean> {
-  const account = await prisma.account.findFirst({
+  const account = await prisma.companySettings.findFirst({
     where: { xeroRefreshToken: { not: null } },
   });
   return Boolean(account?.xeroRefreshToken);
 }
 
 export async function disconnectXero(): Promise<void> {
-  const account = await prisma.account.findFirst({
+  const account = await prisma.companySettings.findFirst({
     where: { xeroRefreshToken: { not: null } },
   });
   if (!account) return;

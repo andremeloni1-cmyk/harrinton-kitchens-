@@ -17,7 +17,7 @@ async function authorized(req: Request): Promise<boolean> {
 export async function POST(req: Request) {
   if (!(await authorized(req))) return json({ error: "unauthorized" }, 401);
 
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   const to = account?.email;
   if (!to) return json({ ok: false, error: "No owner email on file." }, 400);
 

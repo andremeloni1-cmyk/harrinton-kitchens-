@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 // so the login screen can show the business identity before sign-in (a name and
 // logo aren't sensitive in this single-owner app).
 export async function GET() {
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   return json({
     name: account?.name || null,
     logo: account?.logo || null,

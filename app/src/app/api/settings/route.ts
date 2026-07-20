@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   const templates = await prisma.emailTemplate.findMany({ orderBy: { key: "asc" } });
   return json({
     account: account
@@ -60,9 +60,9 @@ export async function PATCH(req: Request) {
   }
 
   if (body.account) {
-    const account = await prisma.account.findFirst();
+    const account = await prisma.companySettings.findFirst();
     if (account) {
-      await prisma.account.update({
+      await prisma.companySettings.update({
         where: { id: account.id },
         data: {
           name: body.account.name ?? account.name,

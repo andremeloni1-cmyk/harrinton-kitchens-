@@ -115,7 +115,7 @@ export async function pushExpenseToXero(expenseId: string): Promise<Expense> {
   if (expense.xeroBankTransactionId) return expense; // already pushed — idempotent
 
   if (!(await isXeroConnected())) throw new Error("Connect Xero in Settings first");
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   if (!account?.xeroBankAccountId) {
     throw new Error("Choose which Xero bank account receipts post to (Settings → Xero)");
   }

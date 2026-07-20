@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { hashPassword } from "../src/lib/password";
 
 const prisma = new PrismaClient();
 
@@ -106,10 +107,26 @@ const todos = (items: string[], doneCount = 0) =>
 async function main() {
   const ownerEmail = process.env.OWNER_EMAIL || "demo@example.com";
 
-  await prisma.account.upsert({
+  await prisma.companySettings.upsert({
     where: { email: ownerEmail },
     update: { name: COMPANY_NAME },
     create: { email: ownerEmail, name: COMPANY_NAME },
+  });
+
+  // The owner becomes the first ADMIN user (per-user auth). In demo mode a known
+  // password lets you sign straight in; a real deployment sets OWNER_PASSWORD (or
+  // the admin sets their own via the invite/reset flow).
+  const ownerPassword = process.env.OWNER_PASSWORD || "benchline-demo";
+  await prisma.user.upsert({
+    where: { email: ownerEmail },
+    update: { role: "ADMIN", active: true },
+    create: {
+      email: ownerEmail,
+      name: "Owner",
+      role: "ADMIN",
+      active: true,
+      passwordHash: hashPassword(ownerPassword),
+    },
   });
 
   for (const t of DEFAULT_TEMPLATES) {

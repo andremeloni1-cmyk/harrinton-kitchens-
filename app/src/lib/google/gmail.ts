@@ -81,7 +81,7 @@ export async function sendEmail(opts: {
   const profile = await gmail.users.getProfile({ userId: "me" });
   const from = profile.data.emailAddress || "me";
 
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   const logo = account?.logo
     ? { data: Buffer.from(account.logo, "base64"), mime: account.logoMime || "image/png" }
     : undefined;

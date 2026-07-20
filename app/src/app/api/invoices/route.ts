@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   // Opportunistic pull-sync on page load, throttled so browsing the invoices
   // page doesn't burn Xero rate limit.
   if (searchParams.get("sync") === "1" && connected) {
-    const account = await prisma.account.findFirst();
+    const account = await prisma.companySettings.findFirst();
     const last = account?.xeroLastInvoiceSyncAt?.getTime() ?? 0;
     if (Date.now() - last > SYNC_THROTTLE_MS) {
       await syncInvoiceStatuses().catch(() => {});

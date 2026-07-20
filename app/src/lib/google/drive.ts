@@ -13,7 +13,7 @@ const escapeDriveQuery = (s: string): string => s.replace(/\\/g, "\\\\").replace
 
 /** Finds (or creates) the root Drive folder where all job folders live. */
 async function ensureRootFolder(auth: any): Promise<string> {
-  const account = await prisma.account.findFirst();
+  const account = await prisma.companySettings.findFirst();
   if (account?.driveFolderId) return account.driveFolderId;
 
   const drive = google.drive({ version: "v3", auth });
@@ -34,7 +34,7 @@ async function ensureRootFolder(auth: any): Promise<string> {
     id = created.data.id!;
   }
   if (account) {
-    await prisma.account.update({ where: { id: account.id }, data: { driveFolderId: id } });
+    await prisma.companySettings.update({ where: { id: account.id }, data: { driveFolderId: id } });
   }
   return id!;
 }
