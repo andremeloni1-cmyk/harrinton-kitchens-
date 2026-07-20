@@ -62,6 +62,9 @@ deploy() {
   git pull --ff-only &&
     { npm ci || npm install; } &&
     npx prisma migrate deploy &&
+    # Best-effort admin bootstrap (never fails the deploy) so per-user auth can't
+    # lock out an in-place update that started with an empty User table.
+    { npm run ensure-admin || true; } &&
     npm run build &&
     pm2 reload harringtonkitchens --update-env
 }

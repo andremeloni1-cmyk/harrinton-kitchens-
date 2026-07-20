@@ -14,6 +14,11 @@ npm ci || npm install
 echo "==> Migrating database"
 npx prisma migrate deploy
 
+echo "==> Ensuring an admin login exists"
+# Best-effort (never fails the deploy): bootstraps the owner as ADMIN if the
+# User table is empty, so an in-place update can't lock everyone out.
+npm run ensure-admin || echo "   (ensure-admin skipped — see log above)"
+
 echo "==> Building"
 npm run build
 
