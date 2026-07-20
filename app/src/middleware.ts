@@ -41,16 +41,16 @@ async function validCookie(value: string | undefined): Promise<boolean> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   if (!timingSafeEqualHex(expected, sig)) return false;
-  // Enforce the issued-at expiry (payload is `ok.<issuedAtMs>`).
-  const ts = Number(payload.split(".")[1]);
+  // Enforce the issued-at expiry (payload is `<userId>.<epoch>.<issuedAtMs>`).
+  // This is a cheap signature/expiry gate only; the per-request server check in
+  // getSessionUser() confirms the user is still active with a matching epoch.
+  const ts = Number(payload.split(".")[2]);
   return Number.isFinite(ts) && Date.now() - ts <= MAX_AGE_MS;
 }
 
 export async function middleware(req: NextRequest) {
-  const password = process.env.APP_PASSWORD;
-  // No password configured → no login gate.
-  if (!password) return NextResponse.next();
-
+  // Per-user auth is always on: require a validly-signed, unexpired session
+  // cookie (deep validation happens server-side in getSessionUser()).
   const cookie = req.cookies.get("jf_session")?.value;
   if (await validCookie(cookie)) return NextResponse.next();
 
@@ -58,7 +58,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Gate everything except the login page, the login API, static assets, and
-  // the client/installer portals (client-facing pages with their own links).
-  matcher: ["/((?!login|api/auth/login|api/branding|api/leads/scan|api/portal|portal|installer-portal|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
+  // Gate everything except the auth pages/APIs (login + password reset), static
+  // assets, and the client/installer portals (client-facing, own auth).
+  matcher: ["/((?!login|reset|api/auth/login|api/auth/reset|api/branding|api/leads/scan|api/portal|portal|installer-portal|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
 };

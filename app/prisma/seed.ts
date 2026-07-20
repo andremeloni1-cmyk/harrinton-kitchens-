@@ -105,7 +105,7 @@ const todos = (items: string[], doneCount = 0) =>
   JSON.stringify(items.map((label, i) => ({ label, done: i < doneCount })));
 
 async function main() {
-  const ownerEmail = process.env.OWNER_EMAIL || "demo@example.com";
+  const ownerEmail = (process.env.OWNER_EMAIL || "demo@example.com").toLowerCase().trim();
 
   await prisma.companySettings.upsert({
     where: { email: ownerEmail },

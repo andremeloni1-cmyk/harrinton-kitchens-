@@ -1,15 +1,10 @@
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
+import { prisma } from "@/lib/db";
+import { isRole, type Role } from "@/lib/roles";
 
 const COOKIE = "jf_session";
 const MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
-
-// Loud boot-time warning if the app is internet-facing with no login gate.
-if (process.env.NODE_ENV === "production" && !process.env.APP_PASSWORD) {
-  console.error(
-    "SECURITY WARNING: APP_PASSWORD is not set — the dashboard is UNAUTHENTICATED and readable/writable by anyone who can reach the URL. Set APP_PASSWORD in .env and restart."
-  );
-}
 
 // Values that must never be used as a signing key — a placeholder or the old
 // dev default would make session cookies forgeable with a publicly-known key.
@@ -37,40 +32,30 @@ function sign(value: string): string | null {
   return `${value}.${h}`;
 }
 
-function verify(signed: string | undefined): boolean {
-  if (!signed) return false;
+// The signed cookie payload is `<userId>.<credentialEpoch>.<issuedAtMs>`. cuid
+// ids and integers contain no dots, so the payload splits cleanly; the final
+// dot-segment is the HMAC.
+function verifySigned(signed: string | undefined): string | null {
+  if (!signed) return null;
   const idx = signed.lastIndexOf(".");
-  if (idx < 0) return false;
+  if (idx < 0) return null;
   const value = signed.slice(0, idx);
   const expected = sign(value);
-  if (!expected) return false;
-  // Constant-time comparison of the whole signed token.
+  if (!expected) return null;
   const a = Buffer.from(signed);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
-  // Enforce the issued-at expiry server-side (payload is `ok.<issuedAtMs>`).
-  const ts = Number(value.split(".")[1]);
-  if (!Number.isFinite(ts) || Date.now() - ts > MAX_AGE_S * 1000) return false;
-  return true;
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const ts = Number(value.split(".")[2]);
+  if (!Number.isFinite(ts) || Date.now() - ts > MAX_AGE_S * 1000) return null;
+  return value;
 }
 
-/** Whether a login gate is configured at all. */
-export function passwordRequired(): boolean {
-  return Boolean(process.env.APP_PASSWORD);
-}
+export type SessionUser = { id: string; name: string; email: string; role: Role };
 
-export function checkPassword(pw: string): boolean {
-  const expected = process.env.APP_PASSWORD || "";
-  if (!expected) return true;
-  // Hash both sides to a fixed length before the constant-time compare, so the
-  // comparison neither throws on length mismatch nor leaks the password length.
-  const a = crypto.createHash("sha256").update(pw).digest();
-  const b = crypto.createHash("sha256").update(expected).digest();
-  return crypto.timingSafeEqual(a, b);
-}
-
-export async function setSessionCookie() {
-  const value = sign(`ok.${Date.now()}`);
+/** Issue a session cookie for a user. The credential epoch is baked in so a
+ *  password reset / deactivation (which bumps the epoch) invalidates it. */
+export async function setSessionCookie(user: { id: string; credentialEpoch: number }) {
+  const value = sign(`${user.id}.${user.credentialEpoch}.${Date.now()}`);
   if (!value) throw new Error("session secret not configured");
   const store = await cookies();
   store.set(COOKIE, value, {
@@ -87,9 +72,29 @@ export async function clearSessionCookie() {
   store.delete(COOKIE);
 }
 
-/** True when the request is allowed (no gate, or valid cookie). */
-export async function isAuthenticated(): Promise<boolean> {
-  if (!passwordRequired()) return true;
+/**
+ * The signed-in staff user, or null. Validates the cookie signature and expiry,
+ * then confirms the user still exists, is active, and their credential epoch
+ * still matches — so resets/deactivations take effect immediately, and only for
+ * that user.
+ */
+export async function getSessionUser(): Promise<SessionUser | null> {
   const store = await cookies();
-  return verify(store.get(COOKIE)?.value);
+  const payload = verifySigned(store.get(COOKIE)?.value);
+  if (!payload) return null;
+  const [userId, epochStr] = payload.split(".");
+  const epoch = Number(epochStr);
+  if (!userId || !Number.isFinite(epoch)) return null;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.active || user.credentialEpoch !== epoch) return null;
+
+  const role: Role = isRole(user.role) ? user.role : "OFFICE";
+  return { id: user.id, name: user.name, email: user.email, role };
+}
+
+/** Boolean guard used by the many API routes that only need "is there a valid
+ *  staff session". Prefer getSessionUser() when you need the identity/role. */
+export async function isAuthenticated(): Promise<boolean> {
+  return (await getSessionUser()) !== null;
 }
