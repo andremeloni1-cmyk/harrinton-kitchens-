@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { can, type Permission } from "@/lib/permissions";
+import { LogoutButton } from "@/components/LogoutButton";
 
 const links: {
   href: string;
@@ -74,6 +75,19 @@ const links: {
     ),
   },
   {
+    href: "/team",
+    title: "Team",
+    subtitle: "Invite staff, set roles, and manage access",
+    perm: "manage_users",
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3.5 19a5.5 5.5 0 0 1 11 0" strokeLinecap="round" />
+        <path d="M16 6a3 3 0 0 1 0 6M17.5 19a5.5 5.5 0 0 0-2.7-4.7" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     title: "Settings",
     subtitle: "Account, Google & Xero connections, email templates",
@@ -113,6 +127,7 @@ export default async function MorePage() {
           </Link>
         ))}
       </div>
+      <LogoutButton />
     </div>
   );
 }
