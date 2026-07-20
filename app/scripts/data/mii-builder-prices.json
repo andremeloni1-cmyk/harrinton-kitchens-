@@ -1,0 +1,12 @@
+[
+  { "name": "Cabinet standard", "unit": "each", "price": 45, "category": "Builder jobs" },
+  { "name": "Cabinet tall", "unit": "each", "price": 50, "category": "Builder jobs" },
+  { "name": "Scribed shadowline rail", "unit": "sqm", "price": 20, "category": "Builder jobs" },
+  { "name": "Bulkhead", "unit": "sqm", "price": 10, "category": "Builder jobs" },
+  { "name": "Fingerpull rail", "unit": "sqm", "price": 10, "category": "Builder jobs" },
+  { "name": "LED light track", "unit": "sqm", "price": 10, "category": "Builder jobs" },
+  { "name": "Underpanel", "unit": "sqm", "price": 10, "category": "Builder jobs" },
+  { "name": "Barback", "unit": "sqm", "price": 25, "category": "Builder jobs" },
+  { "name": "Door jamb", "unit": "each", "price": 75, "category": "Builder jobs" },
+  { "name": "Reassemble cabinets", "unit": "each", "price": 75, "category": "Builder jobs" }
+]
