@@ -1,12 +1,13 @@
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { listBankAccounts } from "@/lib/xero/banktransactions";
 
 export const dynamic = "force-dynamic";
 
 /** Lists the connected org's Xero bank accounts, for the Settings picker. */
 export async function GET() {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   try {
     const accounts = await listBankAccounts();
     if (accounts === null) return json({ accounts: [], connected: false });

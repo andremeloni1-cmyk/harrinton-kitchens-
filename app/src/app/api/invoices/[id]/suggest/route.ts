@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { visionConfigured } from "@/lib/vision";
 import { suggestInvoiceLines } from "@/lib/invoice-ai";
 
@@ -11,7 +11,8 @@ type Params = { params: Promise<{ id: string }> };
 /** AI-suggest invoice lines from the linked job's description + price list.
  * Returns the lines for the editor to append — does not save. */
 export async function POST(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const invoice = await prisma.invoice.findUnique({
     where: { id: (await params).id },
     include: { job: true },

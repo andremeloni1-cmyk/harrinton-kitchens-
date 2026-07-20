@@ -1,10 +1,19 @@
 import Link from "next/link";
+import { getSessionUser } from "@/lib/session";
+import { can, type Permission } from "@/lib/permissions";
 
-const links = [
+const links: {
+  href: string;
+  title: string;
+  subtitle: string;
+  perm?: Permission;
+  icon: React.ReactNode;
+}[] = [
   {
     href: "/invoices",
     title: "Money",
     subtitle: "Invoices, P&L, price list and expenses",
+    perm: "edit_money",
     icon: (
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="12" cy="12" r="9" />
@@ -16,6 +25,7 @@ const links = [
     href: "/portal",
     title: "Client portal",
     subtitle: "What your clients see — job progress, dates & reports",
+    perm: "manage_jobs",
     icon: (
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M3 11l9-7 9 7" strokeLinecap="round" strokeLinejoin="round" />
@@ -28,6 +38,7 @@ const links = [
     href: "/installer-portal",
     title: "Installer portal",
     subtitle: "What your installers see — run sheets & maintenance reports",
+    perm: "manage_jobs",
     icon: (
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M4 15a8 8 0 0 1 16 0" strokeLinecap="round" />
@@ -40,6 +51,7 @@ const links = [
     href: "/hardware",
     title: "Hardware & stock",
     subtitle: "Scan QR labels to book in deliveries and build the order list",
+    perm: "factory_board",
     icon: (
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -53,6 +65,7 @@ const links = [
     href: "/insights",
     title: "Business insights",
     subtitle: "Money in, by company, and your GST / BAS summary",
+    perm: "edit_money",
     icon: (
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M3 3v18h18" strokeLinecap="round" />
@@ -64,6 +77,7 @@ const links = [
     href: "/settings",
     title: "Settings",
     subtitle: "Account, Google & Xero connections, email templates",
+    perm: "manage_settings",
     icon: (
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="12" cy="12" r="3" />
@@ -73,14 +87,16 @@ const links = [
   },
 ];
 
-export default function MorePage() {
+export default async function MorePage() {
+  const user = await getSessionUser();
+  const visible = links.filter((l) => !l.perm || can(user, l.perm));
   return (
     <div className="px-4 pt-6">
       <header className="mb-4">
         <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">More</h1>
       </header>
       <div className="space-y-3 stagger">
-        {links.map((l) => (
+        {visible.map((l) => (
           <Link key={l.href} href={l.href} className="block">
             <div className="tap card flex items-center gap-4 p-4 transition hover:shadow-md active:scale-[0.99]">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-300">

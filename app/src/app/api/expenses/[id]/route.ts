@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { splitGst, toExpenseDTO } from "@/lib/expenses";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const expense = await prisma.expense.findUnique({ where: { id: (await params).id } });
   if (!expense) return json({ error: "not found" }, 404);
   return json({ expense: toExpenseDTO(expense) });
@@ -17,7 +18,8 @@ export async function GET(_req: Request, { params }: Params) {
 /** Edit a captured expense. Blocked once pushed to Xero (409) — the Xero copy is
  * authoritative then; delete and re-capture if it's wrong. */
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const existing = await prisma.expense.findUnique({ where: { id } });
   if (!existing) return json({ error: "not found" }, 404);
@@ -49,7 +51,8 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   try {
     await prisma.expense.delete({ where: { id: (await params).id } });
   } catch {

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { visionConfigured } from "@/lib/vision";
 import { suggestInvoiceLines } from "@/lib/invoice-ai";
 import { computeTotals, type LineItem } from "@/lib/invoices";
@@ -44,7 +44,8 @@ function sanitize(body: unknown): LineItem[] {
 const estimateTotal = (items: LineItem[]) => computeTotals(items).subtotal;
 
 export async function GET(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
   const items = parseItems(job.estimateItems);
@@ -53,7 +54,8 @@ export async function GET(_req: Request, { params }: Params) {
 
 /** Save the estimate; with `setQuote: true` also set the job's quote amount. */
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const body = await req.json().catch(() => ({}));
   const items = sanitize(body);
@@ -80,7 +82,8 @@ export async function PATCH(req: Request, { params }: Params) {
 /** AI-suggest estimate lines from the job description + price list. Returns
  * the lines for review — does not save. */
 export async function POST(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
   if (!visionConfigured()) {

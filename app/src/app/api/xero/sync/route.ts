@@ -1,14 +1,16 @@
 import { json, timingSafeEqualStr } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { isXeroConnected } from "@/lib/xero/oauth";
 import { syncInvoiceStatuses } from "@/lib/invoices";
 
 export const dynamic = "force-dynamic";
 
-// Allow either a logged-in user (manual "Sync now") or the cron job
+// Allow either a money-permitted user (manual "Sync now") or the cron job
 // (presents the shared CRON_SECRET) to pull invoice statuses from Xero.
 async function authorized(req: Request): Promise<boolean> {
-  if (await isAuthenticated()) return true;
+  const user = await getSessionUser();
+  if (user && can(user, "edit_money")) return true;
   const secret = process.env.CRON_SECRET;
   if (secret && timingSafeEqualStr(req.headers.get("x-cron-secret"), secret)) return true;
   return false;

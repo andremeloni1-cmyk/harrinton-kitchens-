@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,8 @@ type Params = { params: Promise<{ id: string }> };
 /** Serves the stored receipt image. Kept out of the list/detail JSON so those
  * payloads stay small. */
 export async function GET(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const expense = await prisma.expense.findUnique({
     where: { id: (await params).id },
     select: { receiptData: true, receiptMime: true },

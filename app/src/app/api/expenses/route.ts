@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { isXeroConnected } from "@/lib/xero/oauth";
 import { createExpense, pushExpenseToXero, toExpenseDTO } from "@/lib/expenses";
 
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 const RASTER = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 export async function GET() {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const [expenses, account, connected] = await Promise.all([
     prisma.expense.findMany({ orderBy: { date: "desc" } }),
     prisma.companySettings.findFirst(),
@@ -25,7 +26,8 @@ export async function GET() {
  * posts it to Xero as spend-money (best-effort — the local record is kept even
  * if the push fails, and the response reports the push error). */
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
 
   const total = Number(body.total);

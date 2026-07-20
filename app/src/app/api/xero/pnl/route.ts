@@ -1,5 +1,5 @@
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { xeroConfigured, isXeroConnected } from "@/lib/xero/oauth";
 import { fetchProfitAndLoss } from "@/lib/xero/reports";
 
@@ -17,7 +17,8 @@ function today(): string {
 }
 
 export async function GET(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const { searchParams } = new URL(req.url);
 
   const from = searchParams.get("from") || monthStart();

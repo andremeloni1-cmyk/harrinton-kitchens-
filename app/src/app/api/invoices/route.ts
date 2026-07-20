@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { xeroConfigured, isXeroConnected } from "@/lib/xero/oauth";
 import {
   createInvoiceFromJob,
@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 const SYNC_THROTTLE_MS = 5 * 60 * 1000;
 
 export async function GET(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const { searchParams } = new URL(req.url);
 
   const connected = await isXeroConnected();
@@ -46,7 +47,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
 
   if (!body.jobId) return json({ error: "jobId is required" }, 400);

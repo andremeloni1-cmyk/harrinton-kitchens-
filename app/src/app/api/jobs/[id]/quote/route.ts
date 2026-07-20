@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { generateQuotePdf, type QuoteLine } from "@/lib/pdf";
 import { parseLineItems } from "@/lib/invoices";
 import { logActivity } from "@/lib/automations";
@@ -18,7 +18,8 @@ const fmtDate = (d: Date) =>
  * an immediate download/share (nothing is saved — a quote is a snapshot).
  */
 export async function POST(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
 

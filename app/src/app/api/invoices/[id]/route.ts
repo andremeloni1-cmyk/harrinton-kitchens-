@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { logActivity } from "@/lib/automations";
 import {
   computeTotals,
@@ -20,7 +20,8 @@ type Params = { params: Promise<{ id: string }> };
 const EDITABLE = ["draft"];
 
 export async function GET(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const invoice = await prisma.invoice.findUnique({
     where: { id: (await params).id },
     include: {
@@ -33,7 +34,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const existing = await prisma.invoice.findUnique({ where: { id: (await params).id } });
   if (!existing) return json({ error: "not found" }, 404);
   if (!EDITABLE.includes(existing.status)) {
@@ -79,7 +81,8 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const existing = await prisma.invoice.findUnique({ where: { id: (await params).id } });
   if (!existing) return json({ error: "not found" }, 404);
 

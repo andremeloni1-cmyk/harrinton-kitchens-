@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { PRICE_UNITS, parseCompanyPrices, relevantToCompany, toDTO } from "@/lib/price-list";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const companyId = new URL(req.url).searchParams.get("companyId");
   const items = await prisma.priceItem.findMany({
     orderBy: [{ active: "desc" }, { category: "asc" }, { name: "asc" }],
@@ -20,7 +21,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
 
   const name = String(body.name || "").trim();

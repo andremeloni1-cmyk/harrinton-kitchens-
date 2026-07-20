@@ -1,5 +1,5 @@
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { visionConfigured } from "@/lib/vision";
 import { extractReceipt } from "@/lib/receipt-ai";
 
@@ -11,7 +11,8 @@ const RASTER = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
  * save. The capture UI calls this, lets the owner correct the fields, then POSTs
  * to /api/expenses to save. */
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("edit_money");
+  if (gate instanceof Response) return gate;
   if (!visionConfigured()) {
     return json({ error: "AI isn't configured — add ANTHROPIC_API_KEY to read receipts." }, 400);
   }

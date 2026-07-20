@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { api } from "@/lib/job";
 import { BRAND } from "@/lib/brand";
+import { can, type Permission } from "@/lib/permissions";
+import type { Role } from "@/lib/roles";
 
 /** The company display name (CompanySettings.name), falling back to the platform
  * brand. Shared by the desktop side-nav wordmark and kept in step with the header. */
@@ -19,13 +21,36 @@ function useCompanyName(): string {
   return name;
 }
 
+/** The signed-in user's role (null until loaded), for hiding nav they can't use. */
+function useMyRole(): Role | null {
+  const [role, setRole] = useState<Role | null>(null);
+  useEffect(() => {
+    api<{ user: { role: Role } }>("/api/auth/me")
+      .then((r) => r?.user?.role && setRole(r.user.role))
+      .catch(() => {});
+  }, []);
+  return role;
+}
+
+/** Filter nav items to those the role may use. Permissioned items stay hidden
+ *  until the role loads (avoids flashing links the user can't access). */
+function visibleFor<T extends { perm?: Permission }>(list: T[], role: Role | null): T[] {
+  return list.filter((i) => !i.perm || (role !== null && can({ role }, i.perm)));
+}
+
 // `match` widens the active state to sibling routes reached from the tab
 // (e.g. Money covers the P&L page, More covers Reports and Settings).
-const items = [
+const items: {
+  href: string;
+  label: string;
+  icon: (props: { className?: string }) => React.ReactElement;
+  match?: string[];
+  perm?: Permission;
+}[] = [
   { href: "/", label: "Jobs", icon: ClipboardIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { href: "/installers", label: "Installers", icon: HardHatIcon },
-  { href: "/clients", label: "Clients", icon: UsersIcon },
+  { href: "/installers", label: "Installers", icon: HardHatIcon, perm: "manage_jobs" },
+  { href: "/clients", label: "Clients", icon: UsersIcon, perm: "manage_jobs" },
   { href: "/reports", label: "Reports", icon: ReportIcon },
   { href: "/more", label: "More", icon: DotsIcon, match: ["/more", "/settings", "/insights", "/invoices", "/pnl", "/prices", "/expenses", "/hardware"] },
 ];
@@ -47,12 +72,17 @@ function isActive(pathname: string, item: (typeof items)[number]): boolean {
  * the screen edges. Hidden on desktop (lg+), where SideNav takes over. */
 export function BottomNav() {
   const pathname = usePathname();
+  const role = useMyRole();
   if (pathname === "/login" || isPortal(pathname)) return null;
 
+  const navItems = visibleFor(items, role);
   return (
     <nav className="fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-md lg:hidden">
-      <div className="glass grid grid-cols-6 rounded-[2rem] px-1 py-1.5">
-        {items.map((item) => {
+      <div
+        className="glass grid rounded-[2rem] px-1 py-1.5"
+        style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+      >
+        {navItems.map((item) => {
           const active = isActive(pathname, item);
           const Icon = item.icon;
           return (
@@ -83,7 +113,10 @@ export function BottomNav() {
 export function SideNav() {
   const pathname = usePathname();
   const companyName = useCompanyName();
+  const role = useMyRole();
   if (pathname === "/login" || isPortal(pathname)) return null;
+
+  const navItems = visibleFor(items, role);
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-stone-200 bg-white/70 px-4 py-6 backdrop-blur-xl dark:border-night-line dark:bg-night-900/70 lg:flex">
@@ -94,7 +127,7 @@ export function SideNav() {
         <span className="font-display text-lg font-bold text-stone-900 dark:text-slate-100">{companyName}</span>
       </div>
       <nav className="flex flex-col gap-1">
-        {items.map((item) => {
+        {navItems.map((item) => {
           const active = isActive(pathname, item);
           const Icon = item.icon;
           return (

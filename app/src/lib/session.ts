@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
 import { isRole, type Role } from "@/lib/roles";
+import { can, type Permission } from "@/lib/permissions";
+import { json } from "@/lib/utils";
 
 const COOKIE = "jf_session";
 const MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
@@ -97,4 +99,20 @@ export async function getSessionUser(): Promise<SessionUser | null> {
  *  staff session". Prefer getSessionUser() when you need the identity/role. */
 export async function isAuthenticated(): Promise<boolean> {
   return (await getSessionUser()) !== null;
+}
+
+/**
+ * Server-side authorization guard for API routes. Returns the signed-in user
+ * when they hold `action`, or a ready-to-return Response (401 if not signed in,
+ * 403 if signed in but not permitted). Usage:
+ *
+ *   const gate = await requirePermission("edit_money");
+ *   if (gate instanceof Response) return gate;
+ *   // gate is the SessionUser from here on
+ */
+export async function requirePermission(action: Permission): Promise<SessionUser | Response> {
+  const user = await getSessionUser();
+  if (!user) return json({ error: "unauthorized" }, 401);
+  if (!can(user, action)) return json({ error: "forbidden" }, 403);
+  return user;
 }
