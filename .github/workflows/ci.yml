@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # Deterministic timezone: scheduling maths and date formatting are
+      # timezone sensitive, so pin it for reproducible tests and builds.
+      TZ: Australia/Sydney
+      # Demo-mode build — SQLite file, no external integrations needed.
+      DATABASE_URL: "file:./ci.db"
+      APP_URL: "http://localhost:3000"
+      SESSION_SECRET: "ci-placeholder-session-secret-not-used-in-prod"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed demo data
+        run: npx prisma db seed
+
+      - name: Build
+        run: npm run build
