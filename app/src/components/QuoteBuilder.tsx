@@ -30,7 +30,7 @@ export function QuoteBuilder({ jobId }: { jobId: string }) {
   const [marginPct, setMarginPct] = useState(0);
   const [notes, setNotes] = useState("");
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState<null | "save" | "pdf" | "suggest" | "new">(null);
+  const [busy, setBusy] = useState<null | "save" | "pdf" | "suggest" | "new" | "send">(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const active = quotes.find((q) => q.id === activeId) || null;
@@ -127,6 +127,33 @@ export function QuoteBuilder({ jobId }: { jobId: string }) {
       }
     } catch (e) {
       flash(e instanceof Error ? e.message : "Couldn't get suggestions");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendToClient() {
+    if (!active) return;
+    setBusy("send");
+    try {
+      if (dirty) {
+        const saved = await save();
+        if (!saved) return;
+      }
+      const res = await api<{ ok: boolean; sent: boolean; hasEmail: boolean }>(
+        `/api/jobs/${jobId}/quotes/${active.id}/send`,
+        { method: "POST" }
+      );
+      await load();
+      flash(
+        !res.hasEmail
+          ? "Marked as sent — no client email on file, share the PDF manually."
+          : res.sent
+            ? "Sent — the client has an email with a link to accept."
+            : "Marked as sent (demo — the portal link was logged on the server)."
+      );
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Couldn't send the quote");
     } finally {
       setBusy(null);
     }
@@ -320,10 +347,19 @@ export function QuoteBuilder({ jobId }: { jobId: string }) {
             <button className="btn-accent" disabled={busy === "pdf"} onClick={downloadPdfNow}>
               {busy === "pdf" ? "Building…" : "Download PDF"}
             </button>
+            <button className="btn-secondary" disabled={busy === "send"} onClick={sendToClient}>
+              {busy === "send" ? "Sending…" : active.status === "draft" ? "Send to client" : "Resend"}
+            </button>
             <button className="btn-secondary" disabled={busy === "new"} onClick={createVersion}>
               {busy === "new" ? "…" : "New version"}
             </button>
           </div>
+          {active.status !== "draft" && (
+            <p className="mt-2 text-xs text-stone-500 dark:text-slate-400">
+              This quote is <span className="font-semibold">{active.status.replace("_", " ")}</span>
+              {active.acceptedAt ? ` — accepted ${new Date(active.acceptedAt).toLocaleDateString("en-GB")}` : ""}.
+            </p>
+          )}
         </>
       )}
     </div>

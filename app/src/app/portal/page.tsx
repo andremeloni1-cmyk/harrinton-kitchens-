@@ -4,6 +4,7 @@ import { MaintenanceRequestForm } from "@/components/MaintenanceRequestForm";
 import { PortalPlanReview } from "@/components/PortalPlanReview";
 import { PortalLogin } from "@/components/PortalLogin";
 import { PortalSignOut } from "@/components/PortalSignOut";
+import { PortalQuotes } from "@/components/PortalQuotes";
 import { getPortalClient } from "@/lib/portal-session";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,8 @@ export default async function PortalPage() {
         </div>
         <PortalSignOut />
       </div>
+
+      <PortalQuotes />
 
       <div className="space-y-4">
         {jobs.map((job) => {

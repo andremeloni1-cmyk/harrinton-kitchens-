@@ -27,6 +27,7 @@ model CompanySettings {
   driveFolderId      String?  // root Drive folder where job PDFs are filed
   signature          String?  // appended to client emails
   accentColor        String?  // brand accent hex (e.g. "#0d9488"); null = platform brass default
+  depositPercent     Float    @default(30)   // deposit invoice % raised when a quote is accepted
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
@@ -142,6 +143,21 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A client's decision on a quote (P4.3) or, later, a design revision (P6). The
+// signature is a typed name captured with a timestamp and IP for the record.
+model Approval {
+  id         String   @id @default(cuid())
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  quoteId    String?  // the quote this decision was made on
+  kind       String   @default("quote") // quote | design
+  decision   String   // accepted | changes_requested
+  signerName String?  // typed-name signature
+  comment    String?  // the client's note when requesting changes
+  ip         String?
+  createdAt  DateTime @default(now())
+}
+
 // A versioned quote for a job (P4.2). Each edit-and-send makes a new version;
 // the latest is the live one. Line amounts live in `sections` (dollars, ex GST,
 // same shape as invoice lines); the totals are stored in integer cents so the
@@ -239,6 +255,7 @@ model Job {
   activities   Activity[]
   invoices     Invoice[]
   quotes       Quote[]
+  approvals    Approval[]
   expenses     Expense[]
 
   notes        String?
