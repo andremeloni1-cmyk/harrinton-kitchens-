@@ -163,6 +163,46 @@ export function feasibleBy(target: string, startDay: string, hoursByStation: Sta
   return f != null && f <= target;
 }
 
+/** `n` working days after `day` (day itself counts as day 0 if it's a work day). */
+export function addWorkingDays(day: string, n: number, holidays?: ReadonlySet<string>): string {
+  let d = isWorkingDay(day, holidays) ? day : nextWorkingDay(day, holidays);
+  for (let i = 0; i < Math.max(0, n); i++) d = nextWorkingDay(d, holidays);
+  return d;
+}
+
+/** Days of slack the workshop keeps between production finishing and the install
+ * (finishing, delivery, buffer). Named so lead-time answers are explainable. */
+export const DELIVERY_BUFFER_DAYS = 3;
+
+/** Earliest finish that also respects EXISTING load: each station-day only has
+ * `hoursPerDay − alreadyBooked` free. `booked` is keyed `${stationId}|${day}`.
+ * This is what turns "how long does the work take" into "when can we actually
+ * start it given everything already in the shop". */
+export function earliestFinishWithLoad(
+  startDay: string,
+  hoursByStation: StationHours[],
+  booked: ReadonlyMap<string, number>,
+  holidays?: ReadonlySet<string>
+): string | null {
+  let cursor = isWorkingDay(startDay, holidays) ? startDay : nextWorkingDay(startDay, holidays);
+  let last: string | null = null;
+  for (const st of hoursByStation) {
+    if (st.hours <= EPS) continue;
+    const cap = Math.max(0.5, st.hoursPerDay);
+    let remaining = st.hours;
+    for (let g = 0; remaining > EPS && g < 800; g++) {
+      const avail = Math.max(0, cap - (booked.get(`${st.stationId}|${cursor}`) ?? 0));
+      if (avail > EPS) {
+        remaining -= Math.min(remaining, avail);
+        last = cursor;
+      }
+      if (remaining > EPS) cursor = nextWorkingDay(cursor, holidays);
+    }
+    cursor = nextWorkingDay(cursor, holidays);
+  }
+  return last;
+}
+
 // --- backward proposal ---
 
 /** Propose blocks so the job finishes by `dueDate`, filling each station's daily

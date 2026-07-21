@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   isWorkingDay, isWeekendDay, nextWorkingDay, prevWorkingDay, workingDays, addDays,
   capacityOn, utilisation, estimateStationHours, estimateJobHours,
-  earliestFinish, feasibleBy, proposeBlocks, parseHolidays, mondayOf, type StationHours,
+  earliestFinish, feasibleBy, proposeBlocks, parseHolidays, mondayOf,
+  addWorkingDays, earliestFinishWithLoad, type StationHours,
 } from "./capacity";
 
 // Reference calendar: 2026-01-05 is a Monday. Jan 10/11 are Sat/Sun.
@@ -115,6 +116,32 @@ describe("earliestFinish / feasibleBy", () => {
   });
   it("returns null when there's no work", () => {
     expect(earliestFinish(MON, [{ stationId: "cut", hours: 0, hoursPerDay: 8 }])).toBe(null);
+  });
+});
+
+describe("addWorkingDays", () => {
+  it("counts working days, skipping the weekend", () => {
+    expect(addWorkingDays(THU, 2)).toBe(MON2); // Thu → Fri → Mon
+    expect(addWorkingDays(MON, 0)).toBe(MON);
+  });
+  it("lands on a working day when starting on a weekend", () => {
+    expect(addWorkingDays(SAT, 0)).toBe(MON2);
+  });
+});
+
+describe("earliestFinishWithLoad", () => {
+  const one: StationHours[] = [{ stationId: "cut", hours: 8, hoursPerDay: 8 }];
+  it("pushes work past a partially-booked day", () => {
+    // Mon already has 6h booked → only 2h free; 8h job spills 2h Mon + 6h Tue.
+    const booked = new Map([[`cut|${MON}`, 6]]);
+    expect(earliestFinishWithLoad(MON, one, booked)).toBe(TUE);
+  });
+  it("skips a fully-booked day entirely", () => {
+    const booked = new Map([[`cut|${MON}`, 8]]);
+    expect(earliestFinishWithLoad(MON, [{ stationId: "cut", hours: 4, hoursPerDay: 8 }], booked)).toBe(TUE);
+  });
+  it("matches the unloaded finish when nothing is booked", () => {
+    expect(earliestFinishWithLoad(MON, one, new Map())).toBe(MON);
   });
 });
 

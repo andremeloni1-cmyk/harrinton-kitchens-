@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import {
   parseHolidays, mondayOf, dayRange, workingDays, utilisation, estimateJobHours, proposeBlocks,
+  earliestFinishWithLoad, addWorkingDays, DELIVERY_BUFFER_DAYS,
   type CapStation, type CapBlock, type UtilCell,
 } from "@/lib/capacity";
 
@@ -117,4 +118,30 @@ export async function autoScheduleJob(jobId: string, opts: { dueDate?: string; c
 function defaultDueDate(): string {
   const today = new Date().toISOString().slice(0, 10);
   return workingDays(today, dayRange(today, 21)[20])[9] ?? today;
+}
+
+export type LeadTime = { cabinetCount: number; startFrom: string; finish: string; install: string; totalHours: number };
+
+/** The earliest realistic install date for a job of ~N cabinets, respecting the
+ * work already booked into every station (P9.3). Deterministic — sales/AI narrate
+ * the returned date, they never invent one. */
+export async function earliestInstall(cabinetCount: number): Promise<LeadTime> {
+  const today = new Date().toISOString().slice(0, 10);
+  const [stations, blocks, holidays] = await Promise.all([
+    prisma.station.findMany({ where: { active: true }, orderBy: { position: "asc" }, select: { id: true, hoursPerDay: true } }),
+    prisma.scheduleBlock.findMany({ where: { day: { gte: today } }, select: { stationId: true, day: true, hours: true } }),
+    holidaySet(),
+  ]);
+  const booked = new Map<string, number>();
+  for (const b of blocks) {
+    const k = `${b.stationId}|${b.day}`;
+    booked.set(k, (booked.get(k) ?? 0) + b.hours);
+  }
+  const size = Math.max(1, Math.round(cabinetCount || 0));
+  const est = estimateJobHours(size, stations);
+  const totalHours = est.reduce((s, e) => s + e.hours, 0);
+  const startFrom = addWorkingDays(today, 2, holidays); // a couple of days before work can realistically start
+  const finish = earliestFinishWithLoad(startFrom, est, booked, holidays) ?? startFrom;
+  const install = addWorkingDays(finish, DELIVERY_BUFFER_DAYS, holidays);
+  return { cabinetCount: size, startFrom, finish, install, totalHours: Math.round(totalHours * 10) / 10 };
 }
