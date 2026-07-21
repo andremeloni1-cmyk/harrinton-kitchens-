@@ -58,6 +58,11 @@ export function dayRange(start: string, count: number): string[] {
   return Array.from({ length: Math.max(0, count) }, (_, i) => addDays(start, i));
 }
 
+/** The Monday of the week containing `day`. */
+export function mondayOf(day: string): string {
+  return addDays(day, -((weekdayOf(day) + 6) % 7));
+}
+
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Parse the CompanySettings.holidays JSON into a validated set of ISO days. */

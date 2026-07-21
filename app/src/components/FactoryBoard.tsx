@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Modal } from "@/components/Modal";
 import { fmtDay } from "@/lib/format";
 import { currentStation, factoryProgress, parseChecklist, type ChecklistItem } from "@/lib/factory";
@@ -75,9 +76,12 @@ export function FactoryBoard() {
 
   return (
     <div className="px-4 pt-5">
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Factory</h1>
-        <p className="text-sm text-stone-500 dark:text-slate-400">{jobs.length} job{jobs.length === 1 ? "" : "s"} in production · drag a card to move it along the line</p>
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Factory</h1>
+          <p className="text-sm text-stone-500 dark:text-slate-400">{jobs.length} job{jobs.length === 1 ? "" : "s"} in production · drag a card to move it along the line</p>
+        </div>
+        <Link href="/factory/schedule" className="shrink-0 rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-600 dark:bg-night-800 dark:text-slate-300">📅 Schedule</Link>
       </header>
 
       {jobs.length === 0 ? (

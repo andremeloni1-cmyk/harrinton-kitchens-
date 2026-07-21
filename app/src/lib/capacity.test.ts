@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isWorkingDay, isWeekendDay, nextWorkingDay, prevWorkingDay, workingDays, addDays,
   capacityOn, utilisation, estimateStationHours, estimateJobHours,
-  earliestFinish, feasibleBy, proposeBlocks, parseHolidays, type StationHours,
+  earliestFinish, feasibleBy, proposeBlocks, parseHolidays, mondayOf, type StationHours,
 } from "./capacity";
 
 // Reference calendar: 2026-01-05 is a Monday. Jan 10/11 are Sat/Sun.
@@ -28,6 +28,11 @@ describe("date helpers", () => {
   });
   it("lists working days in a range", () => {
     expect(workingDays(MON, MON2)).toEqual([MON, TUE, WED, THU, FRI, MON2]);
+  });
+  it("snaps to the Monday of the week", () => {
+    expect(mondayOf(WED)).toBe(MON);
+    expect(mondayOf(SUN)).toBe(MON);
+    expect(mondayOf(MON)).toBe(MON);
   });
   it("addDays crosses month boundaries", () => {
     expect(addDays("2026-01-31", 1)).toBe("2026-02-01");
