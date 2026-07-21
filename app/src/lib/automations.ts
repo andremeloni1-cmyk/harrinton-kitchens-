@@ -183,6 +183,24 @@ const EFFECT_RUNNERS: Record<StageEffect, (job: Job, to: PipelineStage) => Promi
       url: `/jobs/${job.id}`,
     });
   },
+  init_factory: async (job) => {
+    // Create a per-station progress record for the job (idempotent). The first
+    // active station starts in progress; the rest pending.
+    const existing = await prisma.jobStation.count({ where: { jobId: job.id } });
+    if (existing > 0) return;
+    const stations = await prisma.station.findMany({ where: { active: true }, orderBy: { position: "asc" } });
+    for (let i = 0; i < stations.length; i++) {
+      await prisma.jobStation.create({
+        data: {
+          jobId: job.id,
+          stationId: stations[i].id,
+          position: stations[i].position,
+          status: i === 0 ? "in_progress" : "pending",
+          startedAt: i === 0 ? new Date() : null,
+        },
+      });
+    }
+  },
 };
 
 /**

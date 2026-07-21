@@ -23,6 +23,7 @@ describe("stage-effect matrix", () => {
       "draft_invoice",
       "portal_event",
       "push_office",
+      "init_factory",
     ];
     for (const stage of ALL_STAGES) {
       for (const eff of STAGE_EFFECTS[stage]) {
