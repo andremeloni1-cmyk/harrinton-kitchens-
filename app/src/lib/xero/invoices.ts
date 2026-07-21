@@ -114,6 +114,13 @@ export async function setInvoiceStatus(
   return res !== null;
 }
 
+/** The Xero-hosted "pay now / view" URL for an invoice, or null if not
+ * connected or unavailable (P11.2). */
+export async function fetchOnlineInvoiceUrl(xeroInvoiceId: string): Promise<string | null> {
+  const res = await xeroGet<{ OnlineInvoices?: { OnlineInvoiceUrl?: string }[] }>(`/Invoices/${xeroInvoiceId}/OnlineInvoice`);
+  return res?.OnlineInvoices?.[0]?.OnlineInvoiceUrl ?? null;
+}
+
 /** Fetches current Xero state for a set of invoices, chunked to stay well
  * inside URL-length and rate limits. */
 export async function fetchInvoiceStates(xeroIds: string[]): Promise<XeroInvoiceState[]> {

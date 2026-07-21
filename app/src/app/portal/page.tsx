@@ -5,32 +5,15 @@ import { PortalPlanReview } from "@/components/PortalPlanReview";
 import { PortalLogin } from "@/components/PortalLogin";
 import { PortalSignOut } from "@/components/PortalSignOut";
 import { factoryProgress, overallPartProgress } from "@/lib/factory";
+import { clientMilestones, whatsNext } from "@/lib/portal-timeline";
 import { PortalQuotes } from "@/components/PortalQuotes";
 import { PortalDrawings } from "@/components/PortalDrawings";
 import { PortalVariations } from "@/components/PortalVariations";
+import { PortalInvoices } from "@/components/PortalInvoices";
+import { PortalMessages } from "@/components/PortalMessages";
 import { getPortalClient } from "@/lib/portal-session";
 
 export const dynamic = "force-dynamic";
-
-// The four client-facing milestones. lead → step 0 pending; cancelled handled apart.
-const STEPS = ["Confirmed", "Scheduled", "Installation", "Complete"] as const;
-
-function stepIndex(status: string, scheduledStart?: Date | null): number {
-  switch (status) {
-    case "lead":
-      return -1; // awaiting confirmation
-    case "accepted":
-      return scheduledStart ? 1 : 0;
-    case "scheduled":
-      return 1;
-    case "in_progress":
-      return 2;
-    case "completed":
-      return 3;
-    default:
-      return -1;
-  }
-}
 
 export default async function PortalPage() {
   // Portal auth is separate from staff auth — a staff session does not grant
@@ -47,15 +30,17 @@ export default async function PortalPage() {
           installer: { select: { name: true, role: true, color: true } },
           reports: { where: { status: "sent" }, orderBy: { sentAt: "desc" } },
           documents: {
-            where: { sharedWithClient: true, source: "plan" },
+            where: { sharedWithClient: true },
             orderBy: { createdAt: "desc" },
-            select: { id: true, name: true, reviewStatus: true, reviewedAt: true },
+            select: { id: true, name: true, source: true, mimeType: true, webViewLink: true, reviewStatus: true, reviewedAt: true },
           },
+          approvals: { select: { kind: true, decision: true, createdAt: true }, orderBy: { createdAt: "asc" } },
+          checkMeasure: { select: { completedAt: true } },
           tradeVisits: {
             where: { status: { not: "cancelled" } },
             orderBy: { scheduledStart: "asc" },
           },
-          jobStations: { select: { status: true } },
+          jobStations: { select: { status: true, createdAt: true } },
           snags: { select: { status: true } },
         },
       },
@@ -102,10 +87,25 @@ export default async function PortalPage() {
       <PortalQuotes />
       <PortalDrawings />
       <PortalVariations />
+      <PortalInvoices />
 
       <div className="space-y-4">
         {jobs.map((job) => {
-          const idx = stepIndex(job.status, job.scheduledStart);
+          const firstStation = job.jobStations.length
+            ? [...job.jobStations].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0].createdAt.toISOString()
+            : null;
+          const ms = clientMilestones(job.pipelineStage, {
+            enquiry: job.createdAt.toISOString(),
+            quote: job.approvals.find((a) => a.kind === "quote" && a.decision === "accepted")?.createdAt.toISOString() ?? null,
+            measure: job.checkMeasure?.completedAt?.toISOString() ?? null,
+            design: job.approvals.find((a) => a.kind === "design")?.createdAt.toISOString() ?? null,
+            production: firstStation,
+            install: job.scheduledStart?.toISOString() ?? null,
+            handover: job.approvals.find((a) => a.kind === "handover")?.createdAt.toISOString() ?? null,
+          });
+          const nextCopy = whatsNext(job.pipelineStage);
+          const photos = job.documents.filter((d) => (d.mimeType || "").startsWith("image/"));
+          const handoverPack = job.documents.find((d) => d.source === "handover");
           return (
             <div key={job.id} className="card overflow-hidden">
               <div className="border-b border-stone-100 px-4 py-3.5 dark:border-night-line">
@@ -113,41 +113,28 @@ export default async function PortalPage() {
                 <p className="mt-0.5 text-xs text-stone-400 dark:text-slate-500">Ref {job.reference}</p>
               </div>
 
-              {/* Progress tracker */}
+              {/* Project timeline — "where's my kitchen?" at a glance */}
               <div className="px-4 py-4">
-                {idx < 0 ? (
-                  <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                    We&apos;ve received your job and will confirm your dates shortly.
-                  </p>
-                ) : (
-                  <ol className="flex items-center">
-                    {STEPS.map((label, i) => (
-                      <li key={label} className={`flex items-center ${i < STEPS.length - 1 ? "flex-1" : ""}`}>
-                        <div className="flex flex-col items-center">
-                          <span
-                            className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                              i <= idx
-                                ? "bg-brand-600 text-white"
-                                : "bg-stone-100 text-stone-400 dark:bg-night-800 dark:text-slate-500"
-                            }`}
-                          >
-                            {i < idx || idx === STEPS.length - 1 ? "✓" : i + 1}
-                          </span>
-                          <span
-                            className={`mt-1.5 text-[10px] font-medium ${
-                              i <= idx ? "text-brand-700 dark:text-brand-300" : "text-stone-400 dark:text-slate-500"
-                            }`}
-                          >
-                            {label}
-                          </span>
-                        </div>
-                        {i < STEPS.length - 1 && (
-                          <div className={`mx-1 mb-4 h-0.5 flex-1 rounded ${i < idx ? "bg-brand-500" : "bg-stone-100 dark:bg-night-800"}`} />
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                )}
+                <p className="mb-3 rounded-xl bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-800 dark:bg-brand-500/10 dark:text-brand-200">{nextCopy}</p>
+                <ol className="relative ml-1 space-y-3 border-l border-stone-200 pl-5 dark:border-night-line">
+                  {ms.map((m) => (
+                    <li key={m.key} className="relative">
+                      <span
+                        className={`absolute -left-[27px] flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white ${
+                          m.done ? "bg-brand-600" : m.current ? "bg-white ring-2 ring-brand-500 dark:bg-night-900" : "bg-stone-200 dark:bg-night-700"
+                        }`}
+                      >
+                        {m.done ? "✓" : ""}
+                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-sm ${m.current ? "font-semibold text-stone-900 dark:text-slate-100" : m.done ? "text-stone-600 dark:text-slate-300" : "text-stone-400 dark:text-slate-500"}`}>
+                          {m.label}
+                        </span>
+                        {m.date && <span className="shrink-0 text-xs text-stone-400 dark:text-slate-500">{fmtDay(m.date)}</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
 
                 {job.pipelineStage === "PRODUCTION" && (job.jobStations.length > 0 || partPctByJob.has(job.id)) && (() => {
                   // Prefer the part-level % when we have scans; else fall back to stations.
@@ -181,16 +168,41 @@ export default async function PortalPage() {
               </div>
 
               {/* Plans to review */}
-              {job.documents.length > 0 && (
+              {job.documents.some((d) => d.source === "plan") && (
                 <div className="space-y-2.5 border-t border-stone-100 px-4 py-3.5 dark:border-night-line">
                   <p className="text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-slate-500">Your plans</p>
-                  {job.documents.map((d) => (
+                  {job.documents.filter((d) => d.source === "plan").map((d) => (
                     <PortalPlanReview
                       key={d.id}
                       clientId={client.id}
                       plan={{ ...d, reviewedAt: d.reviewedAt ? d.reviewedAt.toISOString() : null }}
                     />
                   ))}
+                </div>
+              )}
+
+              {/* Curated progress photos (only ones staff shared) */}
+              {photos.length > 0 && (
+                <div className="border-t border-stone-100 px-4 py-3.5 dark:border-night-line">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-slate-500">Progress photos</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {photos.map((p) => (
+                      <a key={p.id} href={p.webViewLink || `/api/portal/documents/${p.id}`} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-lg bg-stone-100 dark:bg-night-800">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.webViewLink || `/api/portal/documents/${p.id}`} alt={p.name} className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Handover pack */}
+              {handoverPack && (
+                <div className="border-t border-stone-100 px-4 py-3.5 dark:border-night-line">
+                  <a href={handoverPack.webViewLink || `/api/portal/documents/${handoverPack.id}`} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                    <span>📗 Your handover pack &amp; warranty</span>
+                    <span aria-hidden>→</span>
+                  </a>
                 </div>
               )}
 
@@ -275,6 +287,9 @@ export default async function PortalPage() {
                   </div>
                 )}
               </div>
+
+              {/* Ask the office a question about this job */}
+              <PortalMessages jobId={job.id} />
             </div>
           );
         })}
