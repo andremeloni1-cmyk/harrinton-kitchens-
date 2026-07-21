@@ -10,9 +10,12 @@ type JobStationDTO = {
   id: string; stationId: string; position: number; status: string;
   blocked: boolean; blockerNote: string | null; notes: string | null; checklist: string;
 };
+type PartProg = { stationId: string; done: number; total: number; pct: number };
 type BoardJob = {
   id: string; reference: string; title: string; clientName: string | null;
   scheduledStart: string | null; stations: JobStationDTO[];
+  partsTotal: number; partProgress: PartProg[];
+  cabinets: { id: string; name: string; qcPassedAt: string | null }[];
 };
 type Station = { id: string; name: string; position: number };
 
@@ -44,7 +47,25 @@ export function FactoryBoard() {
     if (!cur) return;
     const next = job.stations.find((s) => s.position === cur.position + 1);
     if (next) await moveTo(job.id, next.stationId);
-    else { await api(`/api/factory/jobs/${job.id}/finish`, { method: "POST" }).catch(() => {}); await load(); }
+    else await finishProduction(job.id);
+  }
+  // Finish production, honouring the QC / dispatch hold-backs: a 409 prompts for
+  // an override reason and retries (P8.3).
+  async function finishProduction(jobId: string, override?: boolean, reason?: string) {
+    const res = await fetch(`/api/factory/jobs/${jobId}/finish`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(override ? { override: true, reason } : {}),
+    }).catch(() => null);
+    if (res && res.status === 409) {
+      const b = await res.json().catch(() => ({}));
+      if (b.needsOverride) {
+        const r = window.prompt(`${b.error}\n\nFinish anyway? Enter a reason to override:`);
+        if (r && r.trim()) await finishProduction(jobId, true, r.trim());
+        return;
+      }
+    }
+    await load();
   }
 
   if (loading) return <div className="px-4 pt-6 text-stone-400 dark:text-slate-500">Loading the factory board…</div>;
@@ -103,6 +124,25 @@ export function FactoryBoard() {
                         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100 dark:bg-night-700">
                           <div className="h-full rounded-full bg-brand-500" style={{ width: `${prog.pct}%` }} />
                         </div>
+                        {job.partsTotal > 0 && (
+                          <div className="mt-2">
+                            <div className="mb-0.5 flex items-center justify-between text-[10px] text-stone-400 dark:text-slate-500">
+                              <span>parts through line</span>
+                              <span>{job.partProgress[0]?.done ?? 0}/{job.partsTotal}</span>
+                            </div>
+                            <div className="flex h-4 items-end gap-0.5">
+                              {job.partProgress.map((s) => (
+                                <div
+                                  key={s.stationId}
+                                  title={`${stations.find((x) => x.id === s.stationId)?.name || ""}: ${s.done}/${s.total}`}
+                                  className="flex flex-1 items-end overflow-hidden rounded-sm bg-stone-100 dark:bg-night-700"
+                                >
+                                  <div className="w-full bg-brand-400" style={{ height: `${Math.max(s.pct, 4)}%` }} />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <button
                           className="mt-2 w-full rounded-lg bg-brand-50 py-1.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
                           onClick={(e) => { e.stopPropagation(); advance(job); }}

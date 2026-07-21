@@ -146,13 +146,14 @@ model Installer {
 
 // A cabinet on a job (P8) — extracted from the cut-list, groups its parts.
 model Cabinet {
-  id        String   @id @default(cuid())
-  jobId     String
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  name      String
-  position  Int      @default(0)
-  parts     Part[]
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  jobId      String
+  job        Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name       String
+  position   Int       @default(0)
+  parts      Part[]
+  qcPassedAt DateTime? // set when this cabinet passes the QC station (P8.3)
+  createdAt  DateTime  @default(now())
 
   @@index([jobId])
 }

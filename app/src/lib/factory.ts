@@ -14,6 +14,11 @@ export const DEFAULT_STATIONS = [
 export const JOB_STATION_STATUSES = ["pending", "in_progress", "done"] as const;
 export type JobStationStatus = (typeof JOB_STATION_STATUSES)[number];
 
+/** Station-role predicates by name (P8.3) — the QC station gets a per-cabinet
+ * sign-off; the dispatch station gates on parts being scanned out. */
+export const isQcStation = (name: string) => /\bqc\b|quality/i.test(name);
+export const isDispatchStation = (name: string) => /dispatch|despatch|ship/i.test(name);
+
 export type ChecklistItem = { label: string; done: boolean };
 
 export function parseChecklist(raw: string | null | undefined): ChecklistItem[] {
@@ -64,4 +69,35 @@ export function partProgressByStation(
     const done = reachedCount(partLastPositions, s.position);
     return { stationId: s.id, done, total, pct: total ? Math.round((done / total) * 100) : 0 };
   });
+}
+
+/** A single client-safe "how far through the line" %, averaged across parts.
+ * Inputs are each part's furthest station *index* (0-based ordinal, or null if
+ * never scanned) and the number of stations. A part at the last station = 100%. */
+export function overallPartProgress(partLastIndices: (number | null)[], stationCount: number): number {
+  if (!partLastIndices.length || stationCount <= 0) return 0;
+  const sum = partLastIndices.reduce<number>(
+    (acc, i) => acc + (i == null ? 0 : Math.min(i + 1, stationCount) / stationCount),
+    0
+  );
+  return Math.round((sum / partLastIndices.length) * 100);
+}
+
+/** Dispatch readiness (P8.3): grouped by cabinet, whether every part has been
+ * scanned out to the dispatch station. Empty (no cut list) = ready. */
+export function dispatchReadiness(
+  parts: { cabinet: string | null; reached: boolean }[]
+): { ready: boolean; cabinets: { name: string; out: number; total: number }[] } {
+  const byCab = new Map<string, { out: number; total: number }>();
+  for (const p of parts) {
+    const key = p.cabinet ?? "Loose parts";
+    const e = byCab.get(key) ?? { out: 0, total: 0 };
+    e.total++;
+    if (p.reached) e.out++;
+    byCab.set(key, e);
+  }
+  return {
+    ready: parts.every((p) => p.reached),
+    cabinets: [...byCab.entries()].map(([name, v]) => ({ name, out: v.out, total: v.total })),
+  };
 }

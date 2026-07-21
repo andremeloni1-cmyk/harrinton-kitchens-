@@ -3,29 +3,38 @@ import { json } from "@/lib/utils";
 import { requirePermission } from "@/lib/session";
 import { runStageTransition, logActivity } from "@/lib/automations";
 import { legacyStatusForStage, stageIndex, type PipelineStage } from "@/lib/pipeline";
+import { stationGate } from "@/lib/factory-guards";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 // Complete a station on the floor (one tap): mark it done and start the next
 // station — or, if it's the last, finish production and move to DELIVERY.
-export async function POST(_req: Request, { params }: Params) {
+export async function POST(req: Request, { params }: Params) {
   const gate = await requirePermission("factory_board");
   if (gate instanceof Response) return gate;
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
 
   const js = await prisma.jobStation.findUnique({
     where: { id },
-    include: { station: { select: { name: true } } },
+    include: { station: { select: { name: true, position: true } } },
   });
   if (!js) return json({ error: "not found" }, 404);
-
-  const now = new Date();
-  await prisma.jobStation.update({ where: { id }, data: { status: "done", completedAt: now, blocked: false } });
 
   const next = await prisma.jobStation.findFirst({
     where: { jobId: js.jobId, position: js.position + 1 },
   });
+
+  // QC / dispatch hold-backs — overridable with a reason (P8.3).
+  const hold = await stationGate(js.jobId, { name: js.station.name, position: js.station.position }, !next);
+  if (hold.blocked && !body.override) return json({ error: hold.message, needsOverride: true, kind: hold.kind }, 409);
+
+  const now = new Date();
+  await prisma.jobStation.update({ where: { id }, data: { status: "done", completedAt: now, blocked: false } });
+  if (hold.blocked && body.override) {
+    await logActivity(js.jobId, "note", `Factory: ${js.station.name} completed with override — ${typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : "no reason given"}`);
+  }
   let finished = false;
   if (next) {
     await prisma.jobStation.update({ where: { id: next.id }, data: { status: "in_progress", startedAt: next.startedAt ?? now } });
