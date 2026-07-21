@@ -1,100 +1,93 @@
-# Harrington Kitchens — Operations Dashboard
+# Benchline — the operating system for joinery companies
 
-A mobile-first dashboard to **schedule kitchen installations, manage installers
-and keep clients updated from your phone**, with Google automations built in.
+Enquiry to handover in one mobile-first workspace: sales, check-measure, design
+sign-off, a configurable factory (job board, QR part tracking, capacity
+scheduling), install & handover, a client portal, and AI throughout. Fully
+**white-label** — set your name, logo and accent and it's your product.
 
-Built with Next.js, TypeScript, Tailwind CSS, Prisma + SQLite, and the Google
-APIs (Calendar, Drive, Gmail).
+Built with Next.js (App Router) + React, TypeScript, Tailwind, Prisma + SQLite,
+with optional Google (Calendar/Drive/Gmail), Xero and Anthropic integrations.
+
+> "Benchline" is the platform's working name. Each deployment brands itself with
+> its own company name + logo (Settings, or `APP_NAME`). This repo's first
+> deployment is **Harrington Kitchens**.
 
 ## What it does
 
-| # | Feature | How |
-|---|---------|-----|
-| 1 | **Job scheduling** | Jobs flow lead → confirmed → scheduled → in progress → completed. Drag on the calendar to reschedule; accepting a job creates a Google Calendar event with the client, address and document links. |
-| 2 | **Installer management** | The *Installers* tab lists the team with weekly workload bars and run sheets. Assign an installer on any job — their name shows on job cards, the calendar and the client portal. |
-| 3 | **Client portal** (`/portal`) | Each client gets a no-login page: progress tracker per project, install dates, who their installer is, **plans to review** (view, approve or request changes — responses land on the dashboard), a **"who's coming to your home" trade schedule**, sent report PDFs, and a maintenance-request form that lands on the dashboard as a job to confirm. |
-| 4 | **Installer portal** (`/installer-portal`) | Installers open their run sheet on their phone: today's jobs, directions, site contact, install checklists, start/complete actions — and they file the branded maintenance-report PDF from site (recorded against their name). |
-| 5 | **Maintenance reports per job** | Fill out a report (rooms, checklists, sign-off signature), generate a branded PDF, save it to Drive and email it to the client in one tap. |
-| 6 | **Automations** | Accept / move / cancel each send a templated email from your Gmail; job PDFs from email are filed to Drive; incoming jobs from trusted builder senders appear as leads to approve. |
+| Area | Highlights |
+|------|-----------|
+| **Pipeline** | A 13-stage lifecycle (enquiry → consult → quote → deposit → check-measure → design → approval → production → quality → delivery → install → handover → maintenance) with a declarative stage-effect engine (calendar, Drive, email, portal, push). |
+| **Sales & client** | Public enquiry form, versioned quote builder with margin/GST and a branded quote-pack PDF, portal quote acceptance with a typed signature, deposit invoicing, consultation booking with clash detection. |
+| **Check measure** | On-site structured measure form (offline-tolerant), AI site-sheet reader, discrepancy detection that drafts a variation. |
+| **Design & sign-off** | Drawing sets with revisions (draft → sent → approved → released), AI change summaries, portal design review + approval, priced variations that flow into the final invoice. |
+| **Factory** | Configurable station board (office + tablet), AI cut-list extraction, **QR part labels + camera scanning**, part-aware progress, QC hold-back and dispatch scan-out gates, **capacity scheduling** (utilisation heat, drag-to-rebalance, live lead-time answers). |
+| **Install & handover** | Multi-day crewed install booking (dispatch-gated), an offline installer field run sheet, a snag list (photo → proof), an on-site handover ceremony (signature → pack PDF → final balance invoice). |
+| **Client portal** | Per-job milestone timeline with dates + "what's next", curated progress photos, invoices (Xero-synced) with pay links, and a two-way message thread. |
+| **AI everywhere** | Role-aware morning briefs, Ask-AI over a live business snapshot, and a weekly risk advisor — all deterministic-first (figures are computed, AI only phrases). |
 
 ### Demo mode
 
-The app is fully usable **before** you connect Google. Until then it runs in
-*demo mode*: jobs, scheduling, portals, reports and PDF generation all work
-locally; the calendar/Drive/email steps are logged to each job's activity feed
-instead of being pushed to Google. Connect Google in **Settings** to turn them
-on for real — no code changes needed.
+Everything works **before** you connect anything. Without Google/Xero/Anthropic
+the app runs in *demo mode*: jobs, portals, PDFs, the factory and scheduling all
+work locally; calendar/Drive/email/invoice/AI steps degrade gracefully (logged
+to the job's activity feed or shown as "unavailable"). Connect integrations in
+**Settings** — or during the first-run setup wizard — to turn them on for real.
 
 ## Quick start (local)
 
 ```bash
 cd app
-cp .env.example .env          # edit values (see below)
+cp .env.example .env          # edit values (see the table below)
 npm install
 npx prisma migrate deploy     # create the SQLite DB
-npx prisma db seed            # templates + kitchen demo data
+npx prisma db seed            # templates + demo data (optional)
 npm run dev                   # http://localhost:3000
 ```
 
-The seed creates 4 installers, 6 clients and 9 kitchen jobs across the
-lifecycle, including a sent maintenance report and a portal maintenance
-request waiting to be confirmed.
+Sign in with `OWNER_EMAIL` / `OWNER_PASSWORD`. On a fresh instance the first
+sign-in lands on the **setup wizard** (company + brand, stations, integrations,
+team, a sample job) — no further env edits needed.
 
 ### Environment variables (`.env`)
 
 | Variable | Required | Notes |
 |----------|----------|-------|
 | `DATABASE_URL` | yes | `file:./harringtonkitchens.db` for SQLite |
-| `APP_URL` | yes | Public base URL; used to build the OAuth redirect |
-| `OWNER_EMAIL` | yes | The single owner account |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | for Google | From Google Cloud Console — see [deploy/GOOGLE_SETUP.md](deploy/GOOGLE_SETUP.md) |
-| `APP_PASSWORD` | optional | Enables a password gate on the admin dashboard (the client & installer portals stay reachable via their own links) |
-| `SESSION_SECRET` | yes | Long random string (`openssl rand -hex 32`) |
+| `APP_URL` | yes | Public base URL; used to build the OAuth redirect URIs |
+| `SESSION_SECRET` | yes (prod) | Long random string — `openssl rand -hex 32` |
+| `OWNER_EMAIL` | yes | Seeded as the first ADMIN user |
+| `OWNER_PASSWORD` | recommended | First admin's password (else the invite/reset flow) |
+| `APP_NAME` / `NEXT_PUBLIC_APP_NAME` | white-label | Your product/company name (keep both equal) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | for Google | See [deploy/GOOGLE_SETUP.md](deploy/GOOGLE_SETUP.md) |
+| `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | for Xero | See [deploy/XERO_SETUP.md](deploy/XERO_SETUP.md) |
+| `ANTHROPIC_API_KEY` | for AI | Enables cut-list/measure/summary/Ask-AI features |
+| `CRON_SECRET` | for cron | Shared secret for the inbox scan + weekly summary |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | for push | Phone notifications (`npx web-push generate-vapid-keys`) |
 
-> **Demo note:** the installer portal reuses the admin job APIs, so run the
-> demo without `APP_PASSWORD`. Production hardening would give each portal its
-> own tokened links, like the client portal's per-client URLs.
+Auth is **per-user** (staff sign in with their own email + password; roles gate
+access). There is no shared password gate.
 
-## Connecting Google
+## Deploy
 
-1. Follow **[deploy/GOOGLE_SETUP.md](deploy/GOOGLE_SETUP.md)** to create OAuth
-   credentials and enable the Calendar, Drive and Gmail APIs.
-2. Set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and restart.
-3. Open **Settings → Connect Google account**.
-
-## Deploying to a VPS
-
-See **[deploy/DEPLOY.md](deploy/DEPLOY.md)**. On a fresh Ubuntu VPS it's one command:
+One command on a fresh Ubuntu VPS provisions Node, pm2, nginx and TLS:
 
 ```bash
-sudo DOMAIN=jobs.yourdomain.com EMAIL=you@yourdomain.com bash deploy/install.sh
+sudo DOMAIN=jobs.example.com EMAIL=you@example.com \
+     BRAND_NAME="Harrington Kitchens" OWNER_EMAIL=you@example.com \
+     bash deploy/install.sh
 ```
 
-This installs Node, builds the app, runs it under pm2, and sets up nginx + free
-HTTPS via Let's Encrypt.
+It writes `.env`, bootstraps the admin, builds, starts pm2, and runs
+`deploy/smoke.sh` (health + login). See **[deploy/DEPLOY.md](deploy/DEPLOY.md)**,
+and **[docs/OPERATIONS.md](../docs/OPERATIONS.md)** for backups, upgrades and the
+Postgres path. A per-role walkthrough is in
+**[docs/USER_GUIDE.md](../docs/USER_GUIDE.md)**.
 
-## Project layout
+## Development
 
-```
-app/
-  prisma/schema.prisma     data model (jobs, installers, clients, reports, templates)
-  src/app/                 pages (dashboard, calendar, installers, job detail, settings)
-  src/app/portal/          client portal (per-client progress + maintenance requests)
-  src/app/installer-portal/ installer portal (run sheets + maintenance reports)
-  src/app/api/             REST API + automations + Google OAuth
-  src/lib/google/          Calendar / Drive / Gmail / OAuth wrappers (demo-safe)
-  src/lib/automations.ts   the status-change & reschedule orchestration
-  src/lib/pdf.ts           maintenance-report PDF generation (pdf-lib)
-  src/components/          UI components
-  deploy/                  VPS install + nginx + pm2 + docs
+```bash
+npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-## Scripts
-
-| Command | Does |
-|---------|------|
-| `npm run dev` | Dev server |
-| `npm run build` | Migrate + production build |
-| `npm start` | Run the production build |
-| `npm run typecheck` | TypeScript check |
-| `npm run db:seed` | Seed templates + demo data |
+CI runs the same on every PR. Money is stored in integer cents in newer domains;
+Prisma migrations are additive; new lib logic ships with vitest tests.

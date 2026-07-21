@@ -1,7 +1,11 @@
 # Connecting Google (Calendar, Drive, Gmail)
 
-Harrington Kitchens uses a single Google account — yours — to add calendar events, file
+The app uses a single Google account — yours — to add calendar events, file
 PDFs in Drive and send client emails. This is a one-time setup.
+
+> The first-run **setup wizard** links here and to Settings → Connect Google.
+> It's optional: without Google the app runs in demo mode (calendar/Drive/email
+> steps are logged to each job instead of pushed). Do this whenever you're ready.
 
 ## 1. Create a Google Cloud project
 

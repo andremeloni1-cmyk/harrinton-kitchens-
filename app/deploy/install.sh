@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Harrington Kitchens — one-shot deployment for a fresh Ubuntu 22.04/24.04 Hostinger VPS.
+# Benchline — one-shot deployment for a fresh Ubuntu 22.04/24.04 VPS.
 # Idempotent: safe to re-run after pulling new code.
 #
-#   sudo DOMAIN=jobs.example.com EMAIL=you@example.com bash deploy/install.sh
+#   sudo DOMAIN=jobs.example.com EMAIL=you@example.com \
+#        BRAND_NAME="Harrington Kitchens" OWNER_EMAIL=you@example.com \
+#        bash deploy/install.sh
 #
+# White-label with BRAND_NAME (sets APP_NAME + NEXT_PUBLIC_APP_NAME). The first
+# admin is bootstrapped from OWNER_EMAIL (+ OWNER_PASSWORD, else a generated one);
+# on first sign-in the setup wizard configures the rest — no further env edits.
 # Requires: a DNS A record for $DOMAIN pointing at this server (for TLS).
 set -euo pipefail
 
@@ -15,6 +20,9 @@ cd "$APP_DIR"
 NODE_MAJOR="${NODE_MAJOR:-20}"
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
+BRAND_NAME="${BRAND_NAME:-}"
+OWNER_EMAIL="${OWNER_EMAIL:-}"
+OWNER_PASSWORD="${OWNER_PASSWORD:-}"
 # Localhost port the app listens on behind nginx. Change (e.g. APP_PORT=3001)
 # when another app on this VPS already uses 3000.
 APP_PORT="${APP_PORT:-3000}"
@@ -55,11 +63,30 @@ if [[ ! -f .env ]]; then
   fi
   SECRET="$(openssl rand -hex 32)"
   sed -i "s#^SESSION_SECRET=.*#SESSION_SECRET=\"$SECRET\"#" .env
-  # Generate a login password too, so the dashboard is never left open by default.
-  APPPW="$(openssl rand -base64 12)"
-  sed -i "s#^APP_PASSWORD=.*#APP_PASSWORD=\"$APPPW\"#" .env
-  echo "  -> .env created (chmod 600). Login password set to: $APPPW"
-  echo "     Also set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / OWNER_EMAIL, then re-run."
+  # A cron secret for the scheduled inbox scan / weekly summary.
+  sed -i "s#^CRON_SECRET=.*#CRON_SECRET=\"$(openssl rand -hex 32)\"#" .env
+  # White-label: set the platform name on both the server and client bundle.
+  if [[ -n "$BRAND_NAME" ]]; then
+    sed -i "s#^APP_NAME=.*#APP_NAME=\"$BRAND_NAME\"#" .env
+    sed -i "s#^NEXT_PUBLIC_APP_NAME=.*#NEXT_PUBLIC_APP_NAME=\"$BRAND_NAME\"#" .env
+  fi
+  # First admin: bootstrap from OWNER_EMAIL; generate a password if none given.
+  if [[ -n "$OWNER_EMAIL" ]]; then
+    sed -i "s#^OWNER_EMAIL=.*#OWNER_EMAIL=\"$OWNER_EMAIL\"#" .env
+    if [[ -z "$OWNER_PASSWORD" ]]; then OWNER_PASSWORD="$(openssl rand -base64 12)"; GEN_PW=1; fi
+    sed -i "s#^OWNER_PASSWORD=.*#OWNER_PASSWORD=\"$OWNER_PASSWORD\"#" .env
+  fi
+  # Web-push (phone notifications) — generate VAPID keys if the tool is present.
+  if npx --no-install web-push generate-vapid-keys --json >/tmp/vapid.json 2>/dev/null; then
+    VPUB="$(node -e 'process.stdout.write(require("/tmp/vapid.json").publicKey)')"
+    VPRIV="$(node -e 'process.stdout.write(require("/tmp/vapid.json").privateKey)')"
+    sed -i "s#^VAPID_PUBLIC_KEY=.*#VAPID_PUBLIC_KEY=\"$VPUB\"#" .env 2>/dev/null || true
+    sed -i "s#^VAPID_PRIVATE_KEY=.*#VAPID_PRIVATE_KEY=\"$VPRIV\"#" .env 2>/dev/null || true
+    rm -f /tmp/vapid.json
+  fi
+  echo "  -> .env created (chmod 600)."
+  [[ -n "${GEN_PW:-}" ]] && echo "     Admin login: $OWNER_EMAIL / $OWNER_PASSWORD  (change it after first sign-in)"
+  echo "     Add GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / XERO_* / ANTHROPIC_API_KEY when ready — all optional."
 else
   chmod 600 .env 2>/dev/null || true
 fi
@@ -70,7 +97,11 @@ npm ci || npm install
 
 log "Applying database migrations"
 npx prisma migrate deploy
-npx prisma db seed || true   # seed templates + demo data on first run
+# Seed templates + demo data on first run (set SEED=0 for a clean branded launch).
+[[ "${SEED:-1}" == "1" ]] && { npx prisma db seed || true; }
+# Deploy-safety: guarantee an admin login exists (bootstraps from OWNER_EMAIL).
+log "Ensuring an admin login exists"
+npm run ensure-admin || true
 
 log "Building the app"
 npm run build
@@ -109,4 +140,10 @@ else
   echo "  DOMAIN not set — skipped nginx/TLS. App is on http://127.0.0.1:$APP_PORT"
 fi
 
+# --- 10. smoke test ----------------------------------------------------------
+log "Running smoke test"
+sleep 3 # give pm2 a moment to bind the port
+bash deploy/smoke.sh "http://127.0.0.1:$APP_PORT" || echo "  smoke test failed — check 'pm2 logs'"
+
 log "Done. App: ${DOMAIN:+https://$DOMAIN}  |  pm2 status: pm2 status"
+echo "  First sign-in lands on the setup wizard to finish white-labelling."

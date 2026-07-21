@@ -1,8 +1,11 @@
-# Connecting Harrington Kitchens to Xero
+# Connecting to Xero
 
-Harrington Kitchens pushes invoices into Xero, pulls payment statuses back, and shows
+The app pushes invoices into Xero, pulls payment statuses back, and shows
 your Profit & Loss straight from your books. It needs a (free) Xero developer
 app so it can talk to your organisation.
+
+> The first-run **setup wizard** links here and to Settings → Connect Xero.
+> It's optional — without Xero, invoices are still drafted and tracked locally.
 
 ## 1. Create the Xero app
 

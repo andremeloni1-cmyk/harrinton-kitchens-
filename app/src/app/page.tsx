@@ -4,6 +4,8 @@ import { jobListQuery } from "@/lib/job-list";
 import type { JobDTO } from "@/lib/job";
 import { getSessionUser } from "@/lib/session";
 import { homeForRole } from "@/lib/nav";
+import { can } from "@/lib/permissions";
+import { prisma } from "@/lib/db";
 
 // Always render with live data — the job list changes throughout the day.
 export const dynamic = "force-dynamic";
@@ -19,6 +21,14 @@ export default async function DashboardPage() {
   if (user) {
     const home = homeForRole(user.role);
     if (home !== "/") redirect(home);
+    // First run: an admin on a brand-new instance is sent to the setup wizard.
+    if (can(user, "manage_settings")) {
+      const [settings, stations] = await Promise.all([
+        prisma.companySettings.findFirst({ select: { onboardedAt: true } }),
+        prisma.station.count(),
+      ]);
+      if (!settings?.onboardedAt && stations === 0) redirect("/setup");
+    }
   }
 
   let initialJobs: JobDTO[] | null = null;

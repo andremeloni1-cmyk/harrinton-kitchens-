@@ -30,6 +30,7 @@ model CompanySettings {
   depositPercent     Float    @default(30)   // deposit invoice % raised when a quote is accepted
   extractionHint     String?  // per-company hint for the cut-list AI (CAD format quirks)
   holidays           String   @default("[]") // JSON array of 'YYYY-MM-DD' factory non-working days (P9)
+  onboardedAt        DateTime? // set when the first-run setup wizard is completed (P13)
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
