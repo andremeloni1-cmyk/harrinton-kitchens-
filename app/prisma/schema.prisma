@@ -29,6 +29,7 @@ model CompanySettings {
   accentColor        String?  // brand accent hex (e.g. "#0d9488"); null = platform brass default
   depositPercent     Float    @default(30)   // deposit invoice % raised when a quote is accepted
   extractionHint     String?  // per-company hint for the cut-list AI (CAD format quirks)
+  holidays           String   @default("[]") // JSON array of 'YYYY-MM-DD' factory non-working days (P9)
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
@@ -206,8 +207,27 @@ model Station {
   updatedAt   DateTime     @updatedAt
   jobStations JobStation[]
   stationEvents StationEvent[]
+  scheduleBlocks ScheduleBlock[]
 
   @@index([position])
+}
+
+// A slice of a job's work at one station on one business day (P9). Hours of
+// station time; the capacity engine (lib/capacity.ts) turns these into
+// utilisation, proposals and feasibility answers.
+model ScheduleBlock {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stationId String
+  station   Station  @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  day       String   // 'YYYY-MM-DD' business day
+  hours     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jobId])
+  @@index([stationId, day])
 }
 
 // A job's progress at one station (created when the job enters PRODUCTION).
@@ -451,6 +471,7 @@ model Job {
   jobStations  JobStation[]
   cabinets     Cabinet[]
   parts        Part[]
+  scheduleBlocks ScheduleBlock[]
   expenses     Expense[]
 
   notes        String?

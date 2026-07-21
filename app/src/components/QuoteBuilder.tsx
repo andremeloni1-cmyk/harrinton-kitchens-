@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/job";
+import { LeadTimeHint } from "@/components/LeadTimeHint";
 import { fmtMoney } from "@/lib/format";
 import {
   computeQuoteTotals,
@@ -327,6 +328,9 @@ export function QuoteBuilder({ jobId }: { jobId: string }) {
               <Totals label="Total" value={fmtMoney(centsToDollars(totals.totalCents), active.currency)} strong />
             </div>
           </div>
+
+          {/* Live lead time from current shop capacity */}
+          <LeadTimeHint />
 
           {/* Notes */}
           <label className="mt-4 block">
