@@ -28,6 +28,7 @@ model CompanySettings {
   signature          String?  // appended to client emails
   accentColor        String?  // brand accent hex (e.g. "#0d9488"); null = platform brass default
   depositPercent     Float    @default(30)   // deposit invoice % raised when a quote is accepted
+  extractionHint     String?  // per-company hint for the cut-list AI (CAD format quirks)
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
@@ -141,6 +142,42 @@ model Installer {
   reports   MaintenanceReport[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A cabinet on a job (P8) — extracted from the cut-list, groups its parts.
+model Cabinet {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name      String
+  position  Int      @default(0)
+  parts     Part[]
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+}
+
+// A part or hardware item (P8). Panels carry dims/material/edging; hardware is
+// just a name + qty. Station scanning progress (P8.2) is tracked per part.
+model Part {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  cabinetId     String?
+  cabinet       Cabinet? @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  name          String
+  kind          String   @default("panel") // panel | hardware
+  material      String?
+  edging        String?
+  widthMm       Int?
+  heightMm      Int?
+  qty           Int      @default(1)
+  lastStationId String?  // furthest station this part has been scanned at (P8.2)
+  scannedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([jobId])
+  @@index([cabinetId])
 }
 
 // A configurable factory station (P7). Company-wide, ordered by position.
@@ -396,6 +433,8 @@ model Job {
   variations   Variation[]
   drawingSets  DrawingSet[]
   jobStations  JobStation[]
+  cabinets     Cabinet[]
+  parts        Part[]
   expenses     Expense[]
 
   notes        String?

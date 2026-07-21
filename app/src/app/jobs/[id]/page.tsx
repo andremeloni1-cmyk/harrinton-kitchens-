@@ -8,6 +8,7 @@ import { StageTimeline } from "@/components/StageTimeline";
 import { SiteVisitBooking } from "@/components/SiteVisitBooking";
 import { DrawingSets } from "@/components/DrawingSets";
 import { VariationList } from "@/components/VariationList";
+import { CutList } from "@/components/CutList";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -513,6 +514,9 @@ export default function JobDetailPage() {
 
       {/* Variations — scope changes, priced and sent for approval */}
       <VariationList jobId={id} />
+
+      {/* Cut list — cabinets & parts extracted from the CAD PDF */}
+      <CutList jobId={id} />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">
