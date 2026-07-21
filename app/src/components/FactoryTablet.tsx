@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/job";
 import { currentStation, factoryProgress, type ChecklistItem } from "@/lib/factory";
 import { parseChecklist } from "@/lib/factory";
+import { FactoryScanner } from "./FactoryScanner";
 
 type JobStationDTO = {
   id: string; stationId: string; position: number; status: string;
@@ -26,6 +27,7 @@ export function FactoryTablet() {
   const [jobs, setJobs] = useState<BoardJob[]>([]);
   const [stationId, setStationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -78,8 +80,15 @@ export function FactoryTablet() {
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-slate-500">Your station</p>
           <h1 className="text-2xl font-bold text-stone-900 dark:text-slate-100">{station.name}</h1>
         </div>
-        <button className="rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-600 dark:bg-night-800 dark:text-slate-300" onClick={() => setStationId(null)}>Change</button>
+        <div className="flex gap-2">
+          <button className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white active:scale-95" onClick={() => setScanning(true)}>📷 Scan</button>
+          <button className="rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-600 dark:bg-night-800 dark:text-slate-300" onClick={() => setStationId(null)}>Change</button>
+        </div>
       </div>
+
+      {scanning && (
+        <FactoryScanner stationId={station.id} stationName={station.name} onClose={() => setScanning(false)} />
+      )}
 
       <p className="mb-2 text-sm font-bold text-stone-700 dark:text-slate-200">At your station now ({nowJobs.length})</p>
       <div className="space-y-3">

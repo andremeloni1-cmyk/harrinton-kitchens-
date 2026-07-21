@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseChecklist, currentStation, factoryProgress, isJobBlocked } from "./factory";
+import { parseChecklist, currentStation, factoryProgress, isJobBlocked, reachedCount, partProgressByStation } from "./factory";
 
 describe("parseChecklist", () => {
   it("parses valid items and coerces done", () => {
@@ -46,5 +46,25 @@ describe("isJobBlocked", () => {
   it("is true when any station is blocked", () => {
     expect(isJobBlocked([{ blocked: false }, { blocked: true }])).toBe(true);
     expect(isJobBlocked([{ blocked: false }])).toBe(false);
+  });
+});
+
+describe("part progress from scans", () => {
+  // 4 parts: reached positions 2, 2, 0, null (unscanned)
+  const lastPos = [2, 2, 0, null];
+  it("counts parts that reached at least a station position", () => {
+    expect(reachedCount(lastPos, 0)).toBe(3); // three have been scanned somewhere
+    expect(reachedCount(lastPos, 2)).toBe(2); // two reached position 2+
+    expect(reachedCount(lastPos, 3)).toBe(0);
+  });
+  it("derives per-station percentages", () => {
+    const prog = partProgressByStation(lastPos, [
+      { id: "a", position: 0 },
+      { id: "b", position: 2 },
+      { id: "c", position: 3 },
+    ]);
+    expect(prog[0]).toEqual({ stationId: "a", done: 3, total: 4, pct: 75 });
+    expect(prog[1]).toEqual({ stationId: "b", done: 2, total: 4, pct: 50 });
+    expect(prog[2]).toEqual({ stationId: "c", done: 0, total: 4, pct: 0 });
   });
 });

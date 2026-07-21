@@ -47,3 +47,21 @@ export function factoryProgress(stations: { status: string }[]): { done: number;
 export function isJobBlocked(stations: { blocked: boolean }[]): boolean {
   return stations.some((s) => s.blocked);
 }
+
+/** How many parts have reached a station — a part whose furthest scanned
+ * position is at or beyond this station counts (P8.2). */
+export function reachedCount(partLastPositions: (number | null)[], stationPosition: number): number {
+  return partLastPositions.filter((p) => p != null && p >= stationPosition).length;
+}
+
+/** Per-station part progress, derived from where each part has been scanned. */
+export function partProgressByStation(
+  partLastPositions: (number | null)[],
+  stations: { id: string; position: number }[]
+): { stationId: string; done: number; total: number; pct: number }[] {
+  const total = partLastPositions.length;
+  return stations.map((s) => {
+    const done = reachedCount(partLastPositions, s.position);
+    return { stationId: s.id, done, total, pct: total ? Math.round((done / total) * 100) : 0 };
+  });
+}

@@ -175,9 +175,23 @@ model Part {
   lastStationId String?  // furthest station this part has been scanned at (P8.2)
   scannedAt     DateTime?
   createdAt     DateTime @default(now())
+  stationEvents StationEvent[]
 
   @@index([jobId])
   @@index([cabinetId])
+}
+
+// A scan: a part reached a station (P8.2). The log behind part-level progress.
+model StationEvent {
+  id        String   @id @default(cuid())
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  stationId String
+  station   Station  @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([partId])
+  @@index([stationId])
 }
 
 // A configurable factory station (P7). Company-wide, ordered by position.
@@ -190,6 +204,7 @@ model Station {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   jobStations JobStation[]
+  stationEvents StationEvent[]
 
   @@index([position])
 }

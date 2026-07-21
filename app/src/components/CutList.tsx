@@ -10,10 +10,24 @@ type Saved = { cabinets: SavedCabinet[]; hardware: { id: string; name: string; q
 
 const emptyPart = (): ExtractedPart => ({ name: "", material: "", edging: "", widthMm: null, heightMm: null, qty: 1 });
 
+// Open a base64 PDF in a new tab (falling back to a download if blocked).
+function openPdf(base64: string, filename: string) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  const w = window.open(url, "_blank");
+  if (!w) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export function CutList({ jobId }: { jobId: string }) {
   const [saved, setSaved] = useState<Saved | null>(null);
   const [review, setReview] = useState<CutListData | null>(null);
-  const [busy, setBusy] = useState<null | "extract" | "confirm">(null);
+  const [busy, setBusy] = useState<null | "extract" | "confirm" | "labels">(null);
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +69,18 @@ export function CutList({ jobId }: { jobId: string }) {
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Couldn't save.");
+    } finally { setBusy(null); }
+  }
+
+  async function printLabels() {
+    setBusy("labels");
+    setMsg(null);
+    try {
+      const res = await api<{ pdfBase64?: string; filename?: string; error?: string }>(`/api/jobs/${jobId}/labels`, { method: "POST" });
+      if (res.pdfBase64 && res.filename) openPdf(res.pdfBase64, res.filename);
+      else setMsg(res.error || "Couldn't build the labels.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Couldn't build the labels.");
     } finally { setBusy(null); }
   }
 
@@ -144,6 +170,11 @@ export function CutList({ jobId }: { jobId: string }) {
           {busy === "extract" ? "Reading…" : saved && saved.cabinets.length > 0 ? "Re-extract from PDF" : "Extract from PDF"}
         </button>
         <button className="btn-secondary" onClick={() => setReview({ cabinets: [{ name: "Cabinet 1", parts: [emptyPart()] }], hardware: [] })}>Enter by hand</button>
+        {saved && saved.cabinets.length > 0 && (
+          <button className="btn-secondary" disabled={busy === "labels"} onClick={printLabels}>
+            {busy === "labels" ? "Building…" : "🏷 Print labels"}
+          </button>
+        )}
         <input ref={fileRef} type="file" accept="application/pdf,image/*" multiple hidden onChange={(e) => extract(e.target.files)} />
       </div>
     </div>
