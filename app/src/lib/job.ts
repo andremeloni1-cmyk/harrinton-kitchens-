@@ -6,6 +6,7 @@ export interface JobDTO {
   title: string;
   description?: string | null;
   status: string;
+  pipelineStage: string; // lib/pipeline.ts — the live lifecycle position
   priority: string;
   scheduledStart?: string | null;
   scheduledEnd?: string | null;

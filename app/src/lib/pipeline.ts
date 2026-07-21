@@ -119,6 +119,18 @@ export function stageIndex(stage: PipelineStage): number {
   return (PIPELINE_STAGES as readonly string[]).indexOf(stage);
 }
 
+/** The next stage along the spine, or null at the end / off the spine. */
+export function nextStage(stage: PipelineStage): LinearStage | null {
+  const i = stageIndex(stage);
+  if (i < 0 || i >= PIPELINE_STAGES.length - 1) return null;
+  return PIPELINE_STAGES[i + 1];
+}
+
+/** The pill classes for a stage, coloured by its group (accent-independent). */
+export function stagePillClass(stage: PipelineStage): string {
+  return STAGE_GROUP_META[STAGE_META[stage].group].pill;
+}
+
 /** Where `stage` sits relative to `current`, for timeline rendering. */
 export function stageStatus(
   stage: LinearStage,

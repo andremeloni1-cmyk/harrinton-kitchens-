@@ -10,6 +10,8 @@ import {
   stageLabel,
   stageIndex,
   stageStatus,
+  nextStage,
+  stagePillClass,
   stageForLegacyStatus,
   legacyStatusForStage,
   jobStageFields,
@@ -46,6 +48,37 @@ describe("stage metadata", () => {
       expect(stageIndex(stage)).toBe(i);
       expect(isTerminalStage(stage)).toBe(false);
     });
+  });
+});
+
+describe("nextStage", () => {
+  it("walks the spine one step at a time", () => {
+    expect(nextStage("ENQUIRY")).toBe("CONSULT");
+    expect(nextStage("INSTALL")).toBe("HANDOVER");
+  });
+
+  it("returns null at the end of the spine and for terminal stages", () => {
+    expect(nextStage("MAINTENANCE")).toBe(null);
+    expect(nextStage("CANCELLED")).toBe(null);
+    expect(nextStage("LOST")).toBe(null);
+  });
+
+  it("can walk the whole spine from ENQUIRY to the end", () => {
+    const walked: PipelineStage[] = ["ENQUIRY"];
+    let s = nextStage("ENQUIRY");
+    while (s) {
+      walked.push(s);
+      s = nextStage(s);
+    }
+    expect(walked).toEqual([...PIPELINE_STAGES]);
+  });
+});
+
+describe("stagePillClass", () => {
+  it("colours a stage by its group", () => {
+    expect(stagePillClass("QUOTE")).toBe(STAGE_GROUP_META.sales.pill);
+    expect(stagePillClass("PRODUCTION")).toBe(STAGE_GROUP_META.factory.pill);
+    expect(stagePillClass("CANCELLED")).toBe(STAGE_GROUP_META.closed.pill);
   });
 });
 
