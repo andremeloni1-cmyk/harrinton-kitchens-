@@ -18,8 +18,8 @@ export const viewport: Viewport = {
   // showing a solid orange band; applyTheme() keeps it in sync with the
   // in-app theme toggle.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ededed" },
-    { media: "(prefers-color-scheme: dark)", color: "#121212" },
+    { media: "(prefers-color-scheme: light)", color: "#f2ede2" },
+    { media: "(prefers-color-scheme: dark)", color: "#121009" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -41,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Loaded in the browser (root layout = every page), so the single-page-font rule doesn't apply. */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap"
           rel="stylesheet"
         />
       </head>

@@ -6,66 +6,66 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Accent: deep teal — a premium kitchen-showroom green. The whole UI
+        // Accent: an oak/brass ramp — warm, crafted, print-like. The whole UI
         // references this single `brand` scale, so this is the one place the
-        // accent colour is defined.
+        // platform default accent is defined. Per-company overrides regenerate
+        // these same steps as CSS variables (see P2.2).
         brand: {
-          50: "#f0fdfa",
-          100: "#ccfbf1",
-          200: "#99f6e4",
-          300: "#5eead4",
-          400: "#2dd4bf",
-          500: "#14b8a6", // ← brand teal
-          600: "#0d9488",
-          700: "#0f766e",
-          800: "#115e59",
-          900: "#134e4a",
-          950: "#042f2e",
+          50: "#fbf7ee",
+          100: "#f3e9d4",
+          200: "#e7d3ab",
+          300: "#d8ba7e",
+          400: "#c69f57",
+          500: "#b0843b", // ← brass
+          600: "#8c6730", // solid accent (white text passes AA)
+          700: "#6f5227", // text links
+          800: "#574020",
+          900: "#46351d",
+          950: "#271c10",
         },
-        // Pure near-black "ink" — the dominant pill buttons and dark accent tiles.
-        // Anchored on the palette's #171717 (RGB 23,23,23).
+        // Warm charcoal "ink" — the dominant pill buttons and dark accent tiles.
+        // Anchored on #17130D (the "#16130F family" from the design brief).
         ink: {
-          DEFAULT: "#171717",
-          800: "#212121",
-          700: "#2c2c2c",
+          DEFAULT: "#17130d",
+          800: "#221d15",
+          700: "#2f281c",
         },
-        // Neutral greys straight from the palette: #4D4D4D (dark) and #DEDEDE
-        // (light). Used for muted text, hairlines and the frosted "table".
+        // Neutral warm greys for muted text and hairlines.
         steel: {
-          DEFAULT: "#4d4d4d", // palette dark gray
-          light: "#dedede", // palette light gray
+          DEFAULT: "#57534e",
+          light: "#e7e2d8",
         },
-        // Dark-mode surfaces — neutral near-black greys anchored on #171717 for a
-        // crisp B&W dark theme that matches the palette's black.
+        // Dark-mode surfaces — warm near-black greys in the ink family, so the
+        // dark theme reads as charcoal paper rather than cold black.
         night: {
-          950: "#0d0d0d", // page background
-          900: "#171717", // card surface (= palette black)
-          850: "#1f1f1f", // elevated surface (inputs, raised tiles)
-          800: "#272727", // tag / chip background
-          line: "#313131", // hairline border / ring
-          line2: "#202020", // subtle divider
+          950: "#121009", // page background
+          900: "#1a1610", // card surface
+          850: "#221d15", // elevated surface (inputs, raised tiles)
+          800: "#2a241a", // tag / chip background
+          line: "#37301f", // hairline border / ring
+          line2: "#241f16", // subtle divider
         },
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "var(--font-sans)", "system-ui", "sans-serif"],
+        // Fraunces — a warm display serif for headings and client-facing surfaces.
+        display: ["var(--font-display)", "Georgia", "serif"],
       },
       borderRadius: {
-        // Bento card geometry — large, soft corners.
-        bento: "26px",
-        "bento-sm": "18px",
+        // Workshop Modern geometry — calmer, ~16px (down from the 26px bento).
+        bento: "16px",
+        "bento-sm": "12px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.08)",
-        // Soft, lifted bento shadow (cards float on the muted page background).
-        bento: "0 10px 30px -12px rgba(16,24,40,0.18), 0 2px 6px -2px rgba(16,24,40,0.06)",
-        lift: "0 6px 16px -4px rgba(16,24,40,0.12), 0 2px 6px -2px rgba(16,24,40,0.08)",
-        // Frosted-glass panel: diffuse drop shadow + a faint inner top highlight
-        // so translucent surfaces read as lifted, soft glass.
+        // Flat paper cards: a whisper of shadow over a hairline border.
+        card: "0 1px 2px rgba(23,19,13,0.04), 0 1px 3px rgba(23,19,13,0.05)",
+        lift: "0 10px 26px -14px rgba(23,19,13,0.20), 0 2px 6px -3px rgba(23,19,13,0.06)",
+        bento: "0 6px 20px -12px rgba(23,19,13,0.14), 0 1px 3px rgba(23,19,13,0.05)",
+        // Frosted overlays (nav dock, sheets) still read as lifted glass.
         glass:
-          "0 12px 40px -14px rgba(23,23,23,0.22), 0 2px 8px -3px rgba(23,23,23,0.10), inset 0 1px 0 0 rgba(255,255,255,0.55)",
+          "0 14px 44px -16px rgba(23,19,13,0.20), 0 2px 8px -4px rgba(23,19,13,0.08), inset 0 1px 0 0 rgba(255,255,255,0.6)",
         "glass-dark":
-          "0 16px 44px -16px rgba(0,0,0,0.65), inset 0 1px 0 0 rgba(255,255,255,0.06)",
+          "0 18px 48px -18px rgba(0,0,0,0.6), inset 0 1px 0 0 rgba(255,255,255,0.05)",
       },
     },
   },

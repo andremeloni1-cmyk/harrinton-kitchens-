@@ -10,8 +10,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Schedule kitchen installations, manage installers and keep clients updated, with Google Calendar, Drive and Gmail automations.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0d0d0d",
-    theme_color: "#ededed",
+    background_color: "#121009",
+    theme_color: "#f2ede2",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
   };
 }
