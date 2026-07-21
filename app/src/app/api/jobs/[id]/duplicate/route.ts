@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { json, createJobWithReference } from "@/lib/utils";
 import { isAuthenticated } from "@/lib/session";
 import { logActivity } from "@/lib/automations";
+import { stageForLegacyStatus } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     title: `${src.title} (copy)`,
     description: src.description,
     status: "lead",
+    pipelineStage: stageForLegacyStatus("lead"),
     priority: src.priority,
     companyId: src.companyId,
     address: src.address,

@@ -4,6 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 import { onStatusChange, onReschedule, removeCalendar } from "@/lib/automations";
 import { isOverdue } from "@/lib/invoices";
 import { rememberContact } from "@/lib/contacts";
+import { stageForLegacyStatus } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,8 @@ export async function PATCH(req: Request, { params }: Params) {
   const statusChanged = "status" in body && body.status !== existing.status;
   if (statusChanged) {
     data.status = body.status;
+    // Mirror the pipeline stage so the two never drift (retired in P3.3).
+    data.pipelineStage = stageForLegacyStatus(body.status);
     // Stamp the real completion time the first time a job is completed; clear
     // it if the job is reopened out of completed.
     if (body.status === "completed" && !existing.completedAt) data.completedAt = new Date();

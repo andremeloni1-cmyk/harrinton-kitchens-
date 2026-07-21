@@ -144,12 +144,15 @@ model Installer {
 
 // Job lifecycle: lead -> quoted -> accepted -> scheduled -> in_progress -> completed
 //                                         \-> cancelled (from any state)
+// Superseded by `pipelineStage` (see lib/pipeline.ts) — the full ENQUIRY..MAINTENANCE
+// spine. `status` is mirrored from it (P3.1) until the pipeline UI retires it (P3.3).
 model Job {
   id           String    @id @default(cuid())
   reference    String    @unique          // human reference e.g. JOB-1042
   title        String
   description  String?
   status       String    @default("lead") // see lifecycle above
+  pipelineStage String   @default("ENQUIRY") // lib/pipeline.ts; mirrored with status
   priority     String    @default("normal") // low | normal | high
 
   // Scheduling
