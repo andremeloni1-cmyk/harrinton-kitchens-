@@ -53,6 +53,19 @@ export async function GET(req: Request, { params }: Params) {
   });
 }
 
+// Toggle whether a document (e.g. a progress photo) is visible on the client
+// portal (P11.1). Staff curate — nothing is auto-shared.
+export async function PATCH(req: Request, { params }: Params) {
+  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const body = await req.json().catch(() => ({}));
+  const docId = typeof body.docId === "string" ? body.docId : "";
+  const doc = await prisma.document.findFirst({ where: { id: docId, jobId: (await params).id } });
+  if (!doc) return json({ error: "not found" }, 404);
+  const sharedWithClient = Boolean(body.sharedWithClient);
+  await prisma.document.update({ where: { id: doc.id }, data: { sharedWithClient } });
+  return json({ ok: true, sharedWithClient });
+}
+
 export async function DELETE(req: Request, { params }: Params) {
   if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
   const { searchParams } = new URL(req.url);

@@ -120,6 +120,15 @@ export function PhotoUpload({ job, onChanged }: { job: JobDTO; onChanged: () => 
     }
   }
 
+  async function toggleShare(docId: string, next: boolean) {
+    await fetch(`/api/jobs/${job.id}/documents`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ docId, sharedWithClient: next }),
+    }).catch(() => {});
+    onChanged();
+  }
+
   return (
     <div className="space-y-3">
       <input
@@ -153,11 +162,18 @@ export function PhotoUpload({ job, onChanged }: { job: JobDTO; onChanged: () => 
                 <span>🖼️</span>
                 <span className="truncate">{p.name}</span>
               </span>
-              {p.webViewLink && (
-                <a href={p.webViewLink} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-brand-600">
-                  Open
-                </a>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleShare(p.id, !p.sharedWithClient)}
+                  className={`rounded-lg px-2 py-1 text-xs font-semibold ${p.sharedWithClient ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" : "bg-stone-100 text-stone-500 dark:bg-night-800 dark:text-slate-400"}`}
+                >
+                  {p.sharedWithClient ? "✓ Shown to client" : "Show client"}
+                </button>
+                {p.webViewLink && (
+                  <a href={p.webViewLink} target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand-600">Open</a>
+                )}
+              </div>
             </li>
           ))}
         </ul>
