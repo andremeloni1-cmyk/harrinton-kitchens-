@@ -337,9 +337,11 @@ model SiteVisit {
   id             String    @id @default(cuid())
   jobId          String
   job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  type           String    @default("CONSULT") // CONSULT | CHECK_MEASURE
+  type           String    @default("CONSULT") // CONSULT | CHECK_MEASURE | INSTALL
   assigneeId     String?
   assigneeName   String?
+  crewIds        String    @default("[]") // JSON Installer ids on the job (P10 INSTALL crew)
+  durationDays   Int       @default(1)    // multi-day installs span working days
   scheduledStart DateTime
   scheduledEnd   DateTime?
   notes          String?

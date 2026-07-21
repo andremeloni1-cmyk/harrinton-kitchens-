@@ -2,12 +2,12 @@
 // consultation and a check measure run through one code path.
 import type { LinearStage } from "./pipeline";
 
-export type VisitType = "CONSULT" | "CHECK_MEASURE";
+export type VisitType = "CONSULT" | "CHECK_MEASURE" | "INSTALL";
 
-export const VISIT_TYPES: VisitType[] = ["CONSULT", "CHECK_MEASURE"];
+export const VISIT_TYPES: VisitType[] = ["CONSULT", "CHECK_MEASURE", "INSTALL"];
 
 export function isVisitType(s: string): s is VisitType {
-  return s === "CONSULT" || s === "CHECK_MEASURE";
+  return s === "CONSULT" || s === "CHECK_MEASURE" || s === "INSTALL";
 }
 
 export const VISIT_META: Record<
@@ -32,5 +32,11 @@ export const VISIT_META: Record<
     stage: "CHECK_MEASURE",
     summary: (t) => `Check measure — ${t}`,
     defaultMins: 90,
+  },
+  INSTALL: {
+    label: "Installation",
+    stage: "INSTALL",
+    summary: (t) => `Installation — ${t}`,
+    defaultMins: 510, // a full working day; multi-day installs span durationDays
   },
 };

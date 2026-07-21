@@ -10,6 +10,7 @@ import { DrawingSets } from "@/components/DrawingSets";
 import { VariationList } from "@/components/VariationList";
 import { CutList } from "@/components/CutList";
 import { PartsProgress } from "@/components/PartsProgress";
+import { InstallBooking } from "@/components/InstallBooking";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -521,6 +522,9 @@ export default function JobDetailPage() {
 
       {/* Part-level production progress from factory scans */}
       <PartsProgress jobId={id} />
+
+      {/* Multi-day crewed install booking (gated on dispatch) */}
+      <InstallBooking jobId={id} />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">
