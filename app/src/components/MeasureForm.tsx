@@ -37,7 +37,11 @@ export function MeasureForm({ jobId }: { jobId: string }) {
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+  const [proposal, setProposal] = useState<Room[] | null>(null);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sheetInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api<{ measure: { data: { rooms: unknown[] } } }>(`/api/jobs/${jobId}/measure`)
@@ -86,6 +90,38 @@ export function MeasureForm({ jobId }: { jobId: string }) {
   const removeRoom = (id: string) => mutate((rs) => rs.filter((r) => r.id !== id));
 
   const setMeasurements = (id: string, key: "walls" | "openings", list: Measurement[]) => patchRoom(id, { [key]: list } as Partial<Room>);
+
+  // AI site-sheet reader — reads a photo into proposed rooms for review; the
+  // user merges them in, nothing auto-commits.
+  async function readSheet(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setReading(true);
+    setAiMsg(null);
+    setProposal(null);
+    try {
+      const fd = new FormData();
+      for (const f of Array.from(files).slice(0, 4)) fd.append("photos", f);
+      const res = await fetch(`/api/jobs/${jobId}/measure/read`, { method: "POST", body: fd });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setAiMsg(body.error || "Couldn't read the sheet."); return; }
+      if (!body.rooms) { setAiMsg(body.message || "Couldn't read the sheet."); return; }
+      setProposal(parseMeasure(JSON.stringify({ rooms: body.rooms })).rooms);
+    } catch {
+      setAiMsg("Couldn't read the sheet — check your connection and try again.");
+    } finally {
+      setReading(false);
+      if (sheetInput.current) sheetInput.current.value = "";
+    }
+  }
+
+  function mergeProposal() {
+    if (!proposal) return;
+    const withIds = proposal.map((r) => ({ ...r, id: newId() }));
+    mutate((rs) => [...rs, ...withIds]);
+    if (withIds[0]) setOpenId(withIds[0].id);
+    setProposal(null);
+    setAiMsg(null);
+  }
 
   if (loading) return <div className="px-4 pt-6 text-stone-400 dark:text-slate-500">Loading…</div>;
 
@@ -170,13 +206,36 @@ export function MeasureForm({ jobId }: { jobId: string }) {
         })}
       </div>
 
-      <button className="btn-accent mt-4 w-full" onClick={addRoom}>
-        + Add room
-      </button>
+      {/* AI review panel — proposed rooms from a photographed sheet */}
+      {proposal && (
+        <div className="card mt-4 border-l-4 border-brand-400 p-4">
+          <p className="font-semibold text-stone-900 dark:text-slate-100">AI read {proposal.length} room{proposal.length === 1 ? "" : "s"} — review before adding</p>
+          <ul className="mt-2 space-y-1 text-sm text-stone-600 dark:text-slate-300">
+            {proposal.map((r, i) => (
+              <li key={i}><span className="font-medium">{r.name}</span> — {roomSummary(r)}</li>
+            ))}
+          </ul>
+          <div className="mt-3 flex gap-2">
+            <button className="btn-accent flex-1" onClick={mergeProposal}>Add {proposal.length === 1 ? "room" : `${proposal.length} rooms`}</button>
+            <button className="btn-ghost" onClick={() => setProposal(null)}>Discard</button>
+          </div>
+        </div>
+      )}
+      {aiMsg && !proposal && (
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{aiMsg}</p>
+      )}
 
-      {rooms.length === 0 && (
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="btn-accent flex-1" onClick={addRoom}>+ Add room</button>
+        <button className="btn-secondary" disabled={reading} onClick={() => sheetInput.current?.click()}>
+          {reading ? "Reading…" : "✨ Read a site sheet"}
+        </button>
+        <input ref={sheetInput} type="file" accept="image/*" multiple hidden onChange={(e) => readSheet(e.target.files)} />
+      </div>
+
+      {rooms.length === 0 && !proposal && (
         <p className="mt-3 text-center text-sm text-stone-400 dark:text-slate-500">
-          Add a room to start capturing. Everything saves as you go — even offline.
+          Add a room by hand, or photograph a site sheet and let AI read it. Everything saves as you go — even offline.
         </p>
       )}
     </div>
