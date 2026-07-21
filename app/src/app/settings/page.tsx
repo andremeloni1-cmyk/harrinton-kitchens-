@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/job";
 import { BRAND } from "@/lib/brand";
+import { StationsManager } from "@/components/StationsManager";
 import { clearQueue } from "@/lib/offline-queue";
 import { NotificationsCard } from "@/components/NotificationsCard";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -471,6 +472,11 @@ export default function SettingsPage() {
           <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={onLogoFile("dark")} className="block w-full text-sm text-stone-600 dark:text-slate-300" />
         )}
         <p className="mt-1 text-xs text-stone-400 dark:text-slate-500">A light/white version of your logo for dark mode and the PDF header. Falls back to the logo above if not set. Save settings to apply.</p>
+      </div>
+
+      {/* Factory stations */}
+      <div className="mb-4">
+        <StationsManager />
       </div>
 
       {/* Email templates */}

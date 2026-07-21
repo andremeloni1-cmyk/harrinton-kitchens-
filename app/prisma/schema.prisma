@@ -143,6 +143,42 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A configurable factory station (P7). Company-wide, ordered by position.
+model Station {
+  id          String       @id @default(cuid())
+  name        String
+  position    Int          @default(0)
+  hoursPerDay Float        @default(8)
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  jobStations JobStation[]
+
+  @@index([position])
+}
+
+// A job's progress at one station (created when the job enters PRODUCTION).
+model JobStation {
+  id          String    @id @default(cuid())
+  jobId       String
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stationId   String
+  station     Station   @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  position    Int       @default(0) // snapshot of the station order at creation
+  status      String    @default("pending") // pending | in_progress | done
+  checklist   String    @default("[]") // JSON [{ label, done }]
+  notes       String?
+  blocked     Boolean   @default(false)
+  blockerNote String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([jobId, stationId])
+  @@index([jobId])
+}
+
 // Design drawings for a job (P6). A set groups its revisions (Rev A, B, …);
 // each revision's files are Documents. Approved/released revisions are immutable
 // — a change needs a new revision.
@@ -359,6 +395,7 @@ model Job {
   checkMeasure CheckMeasure?
   variations   Variation[]
   drawingSets  DrawingSet[]
+  jobStations  JobStation[]
   expenses     Expense[]
 
   notes        String?

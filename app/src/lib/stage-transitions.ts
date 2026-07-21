@@ -19,7 +19,8 @@ export type StageEffect =
   | "sync_pdfs" // pull job PDFs from Gmail into Drive (Google-gated)
   | "draft_invoice" // auto-draft the completion invoice
   | "portal_event" // record a client-facing milestone on the timeline
-  | "push_office"; // push-notify office/factory staff
+  | "push_office" // push-notify office/factory staff
+  | "init_factory"; // create the job's per-station progress records
 
 // Effects fired on entry to each stage. The five legacy-reachable stages
 // (ENQUIRY, DEPOSIT, INSTALL, HANDOVER, CANCELLED) reproduce the old status
@@ -36,7 +37,7 @@ export const STAGE_EFFECTS: Record<PipelineStage, StageEffect[]> = {
   DESIGN: ["portal_event"],
   APPROVAL: ["portal_event", "push_office"],
   // --- Factory ---
-  PRODUCTION: ["push_office"],
+  PRODUCTION: ["push_office", "init_factory"],
   QUALITY: ["push_office"],
   DELIVERY: ["calendar_sync", "portal_event"],
   // --- Field ---
