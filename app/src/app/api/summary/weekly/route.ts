@@ -3,6 +3,8 @@ import { json, timingSafeEqualStr } from "@/lib/utils";
 import { isAuthenticated } from "@/lib/session";
 import { sendEmail } from "@/lib/google/gmail";
 import { buildWeeklySummary, formatWeeklySummary } from "@/lib/summary";
+import { computeRisks } from "@/lib/risk-server";
+import { formatRisks } from "@/lib/risk";
 import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +25,10 @@ export async function POST(req: Request) {
 
   const companyName = account?.name || BRAND.name;
   const summary = await buildWeeklySummary();
-  const body = formatWeeklySummary(summary, "AUD", companyName);
+  const risks = await computeRisks();
+  const body =
+    formatWeeklySummary(summary, "AUD", companyName) +
+    `\n\n— Risk watch —\n${formatRisks(risks).join("\n")}`;
 
   const sent = await sendEmail({
     to,

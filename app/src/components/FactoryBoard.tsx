@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/Modal";
+import { BriefCard } from "@/components/BriefCard";
 import { fmtDay } from "@/lib/format";
 import { currentStation, factoryProgress, parseChecklist, type ChecklistItem } from "@/lib/factory";
 import { api } from "@/lib/job";
@@ -83,6 +84,8 @@ export function FactoryBoard() {
         </div>
         <Link href="/factory/schedule" className="shrink-0 rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-600 dark:bg-night-800 dark:text-slate-300">📅 Schedule</Link>
       </header>
+
+      <BriefCard />
 
       {jobs.length === 0 ? (
         <div className="card p-8 text-center text-sm text-stone-500 dark:text-slate-400">No jobs in production yet. Jobs appear here when they reach the PRODUCTION stage.</div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/job";
 import { queuePhoto, flushQueue, pendingPhotoCount } from "@/lib/offline-queue";
+import { BriefCard } from "@/components/BriefCard";
 
 type Drawing = { id: string; name: string; url: string };
 type FieldJob = {
@@ -61,6 +62,8 @@ export function FieldRunSheet() {
         <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Today on site</h1>
         {pending > 0 && <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">{pending} photo{pending === 1 ? "" : "s"} waiting to sync</p>}
       </header>
+
+      <BriefCard />
 
       {jobs.length === 0 ? (
         <div className="card p-8 text-center text-sm text-stone-500 dark:text-slate-400">No installs booked for today. Enjoy the quiet. 🛠️</div>
