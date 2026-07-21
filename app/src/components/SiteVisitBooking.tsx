@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/job";
+import { VISIT_META, type VisitType } from "@/lib/visits";
 
-type Consult = {
+type Visit = {
   id: string;
   assigneeName: string | null;
   scheduledStart: string;
-  scheduledEnd: string | null;
   notes: string | null;
   status: string;
   onCalendar: boolean;
@@ -21,13 +22,14 @@ function fmtWhen(iso: string): string {
   });
 }
 
-export function ConsultBooking({ jobId }: { jobId: string }) {
-  const [consults, setConsults] = useState<Consult[]>([]);
+export function SiteVisitBooking({ jobId, type }: { jobId: string; type: VisitType }) {
+  const meta = VISIT_META[type];
+  const [visits, setVisits] = useState<Visit[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [open, setOpen] = useState(false);
   const [assigneeId, setAssigneeId] = useState("");
   const [start, setStart] = useState("");
-  const [durationMins, setDurationMins] = useState(60);
+  const [durationMins, setDurationMins] = useState(meta.defaultMins);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,12 +37,12 @@ export function ConsultBooking({ jobId }: { jobId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const { consults } = await api<{ consults: Consult[] }>(`/api/jobs/${jobId}/consults`);
-      setConsults(consults.filter((c) => c.status !== "cancelled"));
+      const { visits } = await api<{ visits: Visit[] }>(`/api/jobs/${jobId}/visits?type=${type}`);
+      setVisits(visits.filter((v) => v.status !== "cancelled"));
     } catch {
       /* ignore */
     }
-  }, [jobId]);
+  }, [jobId, type]);
 
   useEffect(() => {
     load();
@@ -52,60 +54,54 @@ export function ConsultBooking({ jobId }: { jobId: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ ok?: boolean; clash?: Clash[] }>(`/api/jobs/${jobId}/consults`, {
+      const res = await api<{ ok?: boolean; clash?: Clash[] }>(`/api/jobs/${jobId}/visits`, {
         method: "POST",
-        body: JSON.stringify({ start, durationMins, assigneeId: assigneeId || undefined, notes, force }),
+        body: JSON.stringify({ type, start, durationMins, assigneeId: assigneeId || undefined, notes, force }),
       });
-      if (res.clash && res.clash.length) {
-        setClash(res.clash);
-        return;
-      }
+      if (res.clash && res.clash.length) { setClash(res.clash); return; }
       setOpen(false);
       setClash(null);
       setStart("");
       setNotes("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't book the consultation.");
+      setError(e instanceof Error ? e.message : "Couldn't book the visit.");
     } finally {
       setBusy(false);
     }
   }
 
   async function cancel(id: string) {
-    await api(`/api/jobs/${jobId}/consults/${id}`, { method: "DELETE" }).catch(() => {});
+    await api(`/api/jobs/${jobId}/visits/${id}`, { method: "DELETE" }).catch(() => {});
     await load();
   }
 
   return (
     <div className="card mb-3 p-4">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="font-semibold text-stone-900 dark:text-slate-100">Consultation</h2>
+        <h2 className="font-semibold text-stone-900 dark:text-slate-100">{meta.label}</h2>
         {!open && (
           <button className="text-sm font-semibold text-brand-600" onClick={() => setOpen(true)}>
-            {consults.length ? "Book another" : "Book"}
+            {visits.length ? "Book another" : "Book"}
           </button>
         )}
       </div>
 
-      {consults.length > 0 && (
+      {visits.length > 0 ? (
         <ul className="mb-2 space-y-1.5">
-          {consults.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+          {visits.map((v) => (
+            <li key={v.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="text-stone-700 dark:text-slate-200">
-                {fmtWhen(c.scheduledStart)}
-                {c.assigneeName ? ` · ${c.assigneeName}` : ""}
-                {c.onCalendar ? "" : " · not on calendar"}
+                {fmtWhen(v.scheduledStart)}
+                {v.assigneeName ? ` · ${v.assigneeName}` : ""}
+                {v.onCalendar ? "" : " · not on calendar"}
               </span>
-              <button className="text-xs text-stone-400 hover:text-red-600" onClick={() => cancel(c.id)}>
-                Cancel
-              </button>
+              <button className="text-xs text-stone-400 hover:text-red-600" onClick={() => cancel(v.id)}>Cancel</button>
             </li>
           ))}
         </ul>
-      )}
-      {consults.length === 0 && !open && (
-        <p className="text-sm text-stone-500 dark:text-slate-400">No consultation booked yet.</p>
+      ) : (
+        !open && <p className="text-sm text-stone-500 dark:text-slate-400">No {meta.label.toLowerCase()} booked yet.</p>
       )}
 
       {open && (
@@ -125,6 +121,7 @@ export function ConsultBooking({ jobId }: { jobId: string }) {
               <option value={45}>45 min</option>
               <option value={60}>1 hr</option>
               <option value={90}>1.5 hr</option>
+              <option value={120}>2 hr</option>
             </select>
           </div>
           <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" />
@@ -133,9 +130,7 @@ export function ConsultBooking({ jobId }: { jobId: string }) {
             <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
               <p className="font-semibold">Possible clash:</p>
               <ul className="mt-0.5 list-disc pl-4">
-                {clash.map((c, i) => (
-                  <li key={i}>{c.title} — {fmtWhen(c.start)}</li>
-                ))}
+                {clash.map((c, i) => (<li key={i}>{c.title} — {fmtWhen(c.start)}</li>))}
               </ul>
             </div>
           )}
@@ -148,12 +143,22 @@ export function ConsultBooking({ jobId }: { jobId: string }) {
               </button>
             ) : (
               <button className="btn-accent flex-1" disabled={busy} onClick={() => book(false)}>
-                {busy ? "Booking…" : "Book consultation"}
+                {busy ? "Booking…" : `Book ${meta.label.toLowerCase()}`}
               </button>
             )}
             <button className="btn-ghost" onClick={() => { setOpen(false); setClash(null); setError(null); }}>Cancel</button>
           </div>
         </div>
+      )}
+
+      {type === "CHECK_MEASURE" && (
+        <Link
+          href={`/jobs/${jobId}/measure`}
+          className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+        >
+          Open the on-site capture form
+          <span aria-hidden>→</span>
+        </Link>
       )}
     </div>
   );

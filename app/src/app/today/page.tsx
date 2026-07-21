@@ -9,6 +9,15 @@ import { workdaySegments, WORKDAY_MINS } from "@/lib/schedule";
 
 type RunJob = JobDTO & { _segStart: string; _segEnd: string; _dayIndex: number; _dayCount: number };
 
+type TodayVisit = {
+  id: string;
+  type: string;
+  scheduledStart: string;
+  scheduledEnd: string | null;
+  notes: string | null;
+  job: { id: string; title: string; reference: string; address: string | null; clientName: string | null; clientPhone: string | null };
+};
+
 const ON_SITE = ["accepted", "scheduled", "in_progress"];
 
 function sameDay(a: Date, b: Date): boolean {
@@ -19,6 +28,7 @@ export default function TodayPage() {
   const [jobs, setJobs] = useState<RunJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [visits, setVisits] = useState<TodayVisit[]>([]);
   const today = new Date();
 
   const load = useCallback(async () => {
@@ -50,6 +60,7 @@ export default function TodayPage() {
 
   useEffect(() => {
     load();
+    api<{ visits: TodayVisit[] }>("/api/visits/today").then((r) => setVisits(r.visits)).catch(() => {});
   }, [load]);
 
   async function setStatus(job: RunJob, status: string) {
@@ -72,13 +83,36 @@ export default function TodayPage() {
         </p>
       </header>
 
+      {/* Your site visits today (consults / check measures assigned to you) */}
+      {visits.length > 0 && (
+        <section className="mb-4">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-400 dark:text-slate-500">Your site visits</p>
+          <div className="space-y-2">
+            {visits.map((v) => (
+              <Link key={v.id} href={`/jobs/${v.job.id}`} className="card block p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-brand-600">{fmtRange(v.scheduledStart, v.scheduledEnd ?? v.scheduledStart)}</p>
+                  <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                    {v.type === "CHECK_MEASURE" ? "Check measure" : "Consultation"}
+                  </span>
+                </div>
+                <h3 className="mt-0.5 truncate font-semibold text-stone-900 dark:text-slate-100">{v.job.title}</h3>
+                <p className="truncate text-sm text-stone-500 dark:text-slate-400">
+                  {v.job.clientName || "—"}{v.job.address ? ` · ${v.job.address}` : ""}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {[0, 1].map((i) => (
             <div key={i} className="skeleton h-32 rounded-2xl" />
           ))}
         </div>
-      ) : jobs.length === 0 ? (
+      ) : jobs.length === 0 && visits.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 px-6 py-12 text-center">
           <span className="text-3xl">🎉</span>
           <p className="font-semibold text-stone-800 dark:text-slate-100">Nothing on today</p>

@@ -2,17 +2,16 @@ import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
 import { requirePermission } from "@/lib/session";
 import { runStageTransition, logActivity } from "@/lib/automations";
-import { legacyStatusForStage, type PipelineStage } from "@/lib/pipeline";
+import { legacyStatusForStage, stageIndex, type PipelineStage } from "@/lib/pipeline";
 import { intervalsOverlap } from "@/lib/schedule";
 import { createEvent, listEvents } from "@/lib/google/calendar";
 import { sendEmail } from "@/lib/google/gmail";
 import { BRAND } from "@/lib/brand";
+import { VISIT_META, isVisitType, type VisitType } from "@/lib/visits";
 import type { SiteVisit } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
-
-const DEFAULT_MINS = 60;
 
 function serialize(v: SiteVisit) {
   return {
@@ -28,26 +27,24 @@ function serialize(v: SiteVisit) {
   };
 }
 
-function whenLabel(d: Date): string {
-  return d.toLocaleString("en-GB", {
-    weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
-  });
-}
+const whenLabel = (d: Date) =>
+  d.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-export async function GET(_req: Request, { params }: Params) {
+// List a job's visits of a given type (defaults to CONSULT).
+export async function GET(req: Request, { params }: Params) {
   const gate = await requirePermission("manage_jobs");
   if (gate instanceof Response) return gate;
   const jobId = (await params).id;
-  const visits = await prisma.siteVisit.findMany({
-    where: { jobId, type: "CONSULT" },
-    orderBy: { scheduledStart: "asc" },
-  });
-  return json({ consults: visits.map(serialize) });
+  const typeParam = new URL(req.url).searchParams.get("type") || "CONSULT";
+  const type: VisitType = isVisitType(typeParam) ? typeParam : "CONSULT";
+  const visits = await prisma.siteVisit.findMany({ where: { jobId, type }, orderBy: { scheduledStart: "asc" } });
+  return json({ visits: visits.map(serialize) });
 }
 
-// Book a consultation: clash-check the slot (this assignee's other visits + the
-// owner's Google calendar), create the SiteVisit + a calendar event, advance an
-// enquiry to CONSULT, and email the client a confirmation.
+// Book a site visit (consultation or check measure): clash-check the assignee's
+// other visits and the owner's Google calendar, create the visit + a calendar
+// event, advance the pipeline to this visit's stage (forward only), and email
+// the client a confirmation.
 export async function POST(req: Request, { params }: Params) {
   const gate = await requirePermission("manage_jobs");
   if (gate instanceof Response) return gate;
@@ -56,20 +53,23 @@ export async function POST(req: Request, { params }: Params) {
   if (!job) return json({ error: "not found" }, 404);
 
   const body = await req.json().catch(() => ({}));
+  const type: VisitType = isVisitType(body.type) ? body.type : "CONSULT";
+  const meta = VISIT_META[type];
+
   const start = parseDate(body.start);
-  if (!start) return json({ error: "Pick a date and time for the consultation." }, 400);
-  const durationMins = Number(body.durationMins) > 0 ? Number(body.durationMins) : DEFAULT_MINS;
+  if (!start) return json({ error: `Pick a date and time for the ${meta.label.toLowerCase()}.` }, 400);
+  const durationMins = Number(body.durationMins) > 0 ? Number(body.durationMins) : meta.defaultMins;
   const end = new Date(start.getTime() + durationMins * 60_000);
   const assigneeId = typeof body.assigneeId === "string" && body.assigneeId ? body.assigneeId : null;
   const notes = typeof body.notes === "string" ? body.notes.trim().slice(0, 1000) : "";
   const force = body.force === true;
 
-  // Clash detection.
+  // Clash detection: this assignee's other scheduled visits + the owner's calendar.
   const clashes: { title: string; start: string; end: string }[] = [];
   if (assigneeId) {
     const others = await prisma.siteVisit.findMany({ where: { assigneeId, status: "scheduled" } });
     for (const v of others) {
-      const vEnd = v.scheduledEnd ?? new Date(v.scheduledStart.getTime() + DEFAULT_MINS * 60_000);
+      const vEnd = v.scheduledEnd ?? new Date(v.scheduledStart.getTime() + 60 * 60_000);
       if (intervalsOverlap(start, end, v.scheduledStart, vEnd)) {
         clashes.push({ title: "Another site visit", start: v.scheduledStart.toISOString(), end: vEnd.toISOString() });
       }
@@ -77,12 +77,10 @@ export async function POST(req: Request, { params }: Params) {
   }
   const dayStart = new Date(start);
   dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-  const external = await listEvents(dayStart, dayEnd).catch(() => null);
+  const external = await listEvents(dayStart, new Date(dayStart.getTime() + 86_400_000)).catch(() => null);
   if (external) {
     for (const e of external) {
-      if (e.allDay) continue;
-      if (intervalsOverlap(start, end, new Date(e.start), new Date(e.end))) {
+      if (!e.allDay && intervalsOverlap(start, end, new Date(e.start), new Date(e.end))) {
         clashes.push({ title: e.title, start: e.start, end: e.end });
       }
     }
@@ -96,7 +94,7 @@ export async function POST(req: Request, { params }: Params) {
   const visit = await prisma.siteVisit.create({
     data: {
       jobId,
-      type: "CONSULT",
+      type,
       assigneeId,
       assigneeName: assignee?.name ?? null,
       scheduledStart: start,
@@ -105,9 +103,8 @@ export async function POST(req: Request, { params }: Params) {
     },
   });
 
-  // Calendar event (null in demo mode).
   const eventId = await createEvent({
-    summary: `Consultation — ${job.title}`,
+    summary: meta.summary(job.title),
     description: [job.clientName ? `Client: ${job.clientName}` : null, notes || null].filter(Boolean).join("\n"),
     location: job.address,
     start,
@@ -115,35 +112,35 @@ export async function POST(req: Request, { params }: Params) {
   }).catch(() => null);
   if (eventId) await prisma.siteVisit.update({ where: { id: visit.id }, data: { googleEventId: eventId } });
 
-  // First consult on an enquiry advances the pipeline.
-  if (job.pipelineStage === "ENQUIRY") {
+  // Advance the pipeline to this visit's stage — forward only.
+  const fromStage = job.pipelineStage as PipelineStage;
+  if (stageIndex(fromStage) >= 0 && stageIndex(fromStage) < stageIndex(meta.stage)) {
     const j2 = await prisma.job.update({
       where: { id: jobId },
-      data: { pipelineStage: "CONSULT", status: legacyStatusForStage("CONSULT") },
+      data: { pipelineStage: meta.stage, status: legacyStatusForStage(meta.stage) },
     });
-    await runStageTransition(j2, "ENQUIRY" as PipelineStage, "CONSULT", { logTransition: true }).catch(() => {});
+    await runStageTransition(j2, fromStage, meta.stage, { logTransition: true }).catch(() => {});
   }
 
   const when = whenLabel(start);
   await logActivity(
     jobId,
     "calendar",
-    `Consultation booked for ${when}${assignee?.name ? ` · ${assignee.name}` : ""}${eventId ? "" : " (demo — connect Google to sync)"}`
+    `${meta.label} booked for ${when}${assignee?.name ? ` · ${assignee.name}` : ""}${eventId ? "" : " (demo — connect Google to sync)"}`
   );
 
-  // Client confirmation.
   if (job.clientEmail) {
     await sendEmail({
       to: job.clientEmail,
-      subject: `Your consultation with ${BRAND.name}`,
+      subject: `Your ${meta.label.toLowerCase()} with ${BRAND.name}`,
       body:
         `Hi ${job.clientName || "there"},\n\n` +
-        `Your consultation for "${job.title}" is booked for ${when}` +
+        `Your ${meta.label.toLowerCase()} for "${job.title}" is booked for ${when}` +
         `${assignee?.name ? ` with ${assignee.name}` : ""}.\n\n` +
         `${job.address ? `Location: ${job.address}\n\n` : ""}` +
         `We look forward to seeing you.`,
     }).catch(() => {});
   }
 
-  return json({ ok: true, consult: serialize({ ...visit, googleEventId: eventId }) }, 201);
+  return json({ ok: true, visit: serialize({ ...visit, googleEventId: eventId }) }, 201);
 }

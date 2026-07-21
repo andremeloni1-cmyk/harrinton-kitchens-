@@ -7,7 +7,7 @@ import { deleteJobEvent } from "@/lib/google/calendar";
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string; visitId: string }> };
 
-// Cancel a consultation: remove its calendar event and mark it cancelled.
+// Cancel a site visit: remove its calendar event and mark it cancelled.
 export async function DELETE(_req: Request, { params }: Params) {
   const gate = await requirePermission("manage_jobs");
   if (gate instanceof Response) return gate;
@@ -18,6 +18,6 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   if (visit.googleEventId) await deleteJobEvent(visit.googleEventId).catch(() => {});
   await prisma.siteVisit.update({ where: { id: visit.id }, data: { status: "cancelled", googleEventId: null } });
-  await logActivity(id, "calendar", "Consultation cancelled");
+  await logActivity(id, "calendar", `${visit.type === "CHECK_MEASURE" ? "Check measure" : "Consultation"} cancelled`);
   return json({ ok: true });
 }
