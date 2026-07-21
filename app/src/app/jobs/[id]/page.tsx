@@ -13,6 +13,7 @@ import { PartsProgress } from "@/components/PartsProgress";
 import { InstallBooking } from "@/components/InstallBooking";
 import { SnagList } from "@/components/SnagList";
 import { HandoverPanel } from "@/components/HandoverPanel";
+import { JobMessages } from "@/components/JobMessages";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -533,6 +534,9 @@ export default function JobDetailPage() {
 
       {/* Handover ceremony — client sign-off, pack, final invoice */}
       <HandoverPanel jobId={id} clientName={job.clientName} />
+
+      {/* Client ↔ office messages (AI-drafted replies, human sends) */}
+      <JobMessages jobId={id} />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">

@@ -10,6 +10,7 @@ import { PortalQuotes } from "@/components/PortalQuotes";
 import { PortalDrawings } from "@/components/PortalDrawings";
 import { PortalVariations } from "@/components/PortalVariations";
 import { PortalInvoices } from "@/components/PortalInvoices";
+import { PortalMessages } from "@/components/PortalMessages";
 import { getPortalClient } from "@/lib/portal-session";
 
 export const dynamic = "force-dynamic";
@@ -286,6 +287,9 @@ export default async function PortalPage() {
                   </div>
                 )}
               </div>
+
+              {/* Ask the office a question about this job */}
+              <PortalMessages jobId={job.id} />
             </div>
           );
         })}

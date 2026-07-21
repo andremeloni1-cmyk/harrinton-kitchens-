@@ -97,8 +97,26 @@ model Client {
   invoices      Invoice[]
   portalTokens  ClientPortalToken[]
   maintenanceRequests MaintenanceRequest[]
+  portalMessages PortalMessage[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// A message in a job's client ↔ office thread (P11.3). `sender` says who wrote
+// it; email/push notifies the other side. AI can draft office replies but never
+// sends them.
+model PortalMessage {
+  id         String   @id @default(cuid())
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sender     String   // "client" | "office"
+  authorName String?
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([jobId])
 }
 
 // A service/warranty request raised by a client on their portal (P10.5). The
@@ -514,6 +532,7 @@ model Job {
   parts        Part[]
   scheduleBlocks ScheduleBlock[]
   snags        SnagItem[]
+  messages     PortalMessage[]
   expenses     Expense[]
 
   notes        String?
