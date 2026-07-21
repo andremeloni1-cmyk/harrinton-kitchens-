@@ -28,6 +28,7 @@ model CompanySettings {
   signature          String?  // appended to client emails
   accentColor        String?  // brand accent hex (e.g. "#0d9488"); null = platform brass default
   depositPercent     Float    @default(30)   // deposit invoice % raised when a quote is accepted
+  extractionHint     String?  // per-company hint for the cut-list AI (CAD format quirks)
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
@@ -143,6 +144,57 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A cabinet on a job (P8) — extracted from the cut-list, groups its parts.
+model Cabinet {
+  id         String    @id @default(cuid())
+  jobId      String
+  job        Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name       String
+  position   Int       @default(0)
+  parts      Part[]
+  qcPassedAt DateTime? // set when this cabinet passes the QC station (P8.3)
+  createdAt  DateTime  @default(now())
+
+  @@index([jobId])
+}
+
+// A part or hardware item (P8). Panels carry dims/material/edging; hardware is
+// just a name + qty. Station scanning progress (P8.2) is tracked per part.
+model Part {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  cabinetId     String?
+  cabinet       Cabinet? @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  name          String
+  kind          String   @default("panel") // panel | hardware
+  material      String?
+  edging        String?
+  widthMm       Int?
+  heightMm      Int?
+  qty           Int      @default(1)
+  lastStationId String?  // furthest station this part has been scanned at (P8.2)
+  scannedAt     DateTime?
+  createdAt     DateTime @default(now())
+  stationEvents StationEvent[]
+
+  @@index([jobId])
+  @@index([cabinetId])
+}
+
+// A scan: a part reached a station (P8.2). The log behind part-level progress.
+model StationEvent {
+  id        String   @id @default(cuid())
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  stationId String
+  station   Station  @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([partId])
+  @@index([stationId])
+}
+
 // A configurable factory station (P7). Company-wide, ordered by position.
 model Station {
   id          String       @id @default(cuid())
@@ -153,6 +205,7 @@ model Station {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   jobStations JobStation[]
+  stationEvents StationEvent[]
 
   @@index([position])
 }
@@ -396,6 +449,8 @@ model Job {
   variations   Variation[]
   drawingSets  DrawingSet[]
   jobStations  JobStation[]
+  cabinets     Cabinet[]
+  parts        Part[]
   expenses     Expense[]
 
   notes        String?

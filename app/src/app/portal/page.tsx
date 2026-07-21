@@ -4,7 +4,7 @@ import { MaintenanceRequestForm } from "@/components/MaintenanceRequestForm";
 import { PortalPlanReview } from "@/components/PortalPlanReview";
 import { PortalLogin } from "@/components/PortalLogin";
 import { PortalSignOut } from "@/components/PortalSignOut";
-import { factoryProgress } from "@/lib/factory";
+import { factoryProgress, overallPartProgress } from "@/lib/factory";
 import { PortalQuotes } from "@/components/PortalQuotes";
 import { PortalDrawings } from "@/components/PortalDrawings";
 import { PortalVariations } from "@/components/PortalVariations";
@@ -66,6 +66,25 @@ export default async function PortalPage() {
 
   const firstName = client.name.trim().split(/\s+/)[0] || client.name;
   const jobs = client.jobs.filter((j) => j.status !== "cancelled");
+
+  // Client-safe production progress (P8.3): a single % per job, averaged across
+  // parts from label scans — no station names or internal detail leak out.
+  const productionJobIds = jobs.filter((j) => j.pipelineStage === "PRODUCTION").map((j) => j.id);
+  const partPctByJob = new Map<string, number>();
+  if (productionJobIds.length) {
+    const stationsOrdered = await prisma.station.findMany({ where: { active: true }, orderBy: { position: "asc" }, select: { id: true } });
+    const stationIndex = new Map(stationsOrdered.map((s, i) => [s.id, i]));
+    if (stationsOrdered.length) {
+      const parts = await prisma.part.findMany({ where: { jobId: { in: productionJobIds }, kind: "panel" }, select: { jobId: true, lastStationId: true } });
+      const byJob = new Map<string, (number | null)[]>();
+      for (const p of parts) {
+        const arr = byJob.get(p.jobId) ?? [];
+        arr.push(p.lastStationId != null ? stationIndex.get(p.lastStationId) ?? null : null);
+        byJob.set(p.jobId, arr);
+      }
+      for (const [jid, idxs] of byJob) partPctByJob.set(jid, overallPartProgress(idxs, stationsOrdered.length));
+    }
+  }
 
   return (
     <div className="mx-auto max-w-lg">
@@ -129,19 +148,21 @@ export default async function PortalPage() {
                   </ol>
                 )}
 
-                {job.pipelineStage === "PRODUCTION" && job.jobStations.length > 0 && (
-                  <div className="mt-3 rounded-xl bg-brand-50 px-3 py-2.5 dark:bg-brand-500/10">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-brand-800 dark:text-brand-200">In production</span>
-                      <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
-                        {factoryProgress(job.jobStations).done}/{factoryProgress(job.jobStations).total} stations
-                      </span>
+                {job.pipelineStage === "PRODUCTION" && (job.jobStations.length > 0 || partPctByJob.has(job.id)) && (() => {
+                  // Prefer the part-level % when we have scans; else fall back to stations.
+                  const pct = partPctByJob.has(job.id) ? partPctByJob.get(job.id)! : factoryProgress(job.jobStations).pct;
+                  return (
+                    <div className="mt-3 rounded-xl bg-brand-50 px-3 py-2.5 dark:bg-brand-500/10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-brand-800 dark:text-brand-200">In production</span>
+                        <span className="text-xs font-medium text-brand-700 dark:text-brand-300">{pct}% complete</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/60 dark:bg-night-800">
+                        <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/60 dark:bg-night-800">
-                      <div className="h-full rounded-full bg-brand-500" style={{ width: `${factoryProgress(job.jobStations).pct}%` }} />
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Plans to review */}
