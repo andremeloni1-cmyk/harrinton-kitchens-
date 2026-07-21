@@ -41,6 +41,7 @@ export async function GET() {
       scheduledStart: true, scheduledEnd: true,
       installerId: true,
       siteVisits: { where: { type: "INSTALL", status: "scheduled" }, orderBy: { scheduledStart: "desc" }, take: 1, select: { crewIds: true, durationDays: true, notes: true } },
+      snags: { where: { status: "open" }, select: { id: true } },
       drawingSets: {
         select: {
           name: true,
@@ -85,6 +86,7 @@ export async function GET() {
         durationDays: visit?.durationDays ?? 1,
         accessNotes: visit?.notes ?? null,
         drawings,
+        openSnags: j.snags.length,
       };
     }),
   });

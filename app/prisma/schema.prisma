@@ -317,6 +317,27 @@ model Variation {
   @@index([jobId])
 }
 
+// A snag raised on site during/after install (P10.3): a defect to fix, with a
+// photo when raised and a proof photo when resolved. Open → resolved trail is
+// visible to office (full) and client (counts only).
+model SnagItem {
+  id           String    @id @default(cuid())
+  jobId        String
+  job          Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  note         String
+  status       String    @default("open") // open | resolved
+  assigneeId   String?   // Installer id
+  assigneeName String?
+  photoDocId   String?   // Document (source "snag") — photo when raised
+  proofDocId   String?   // Document — proof-of-fix photo when resolved
+  raisedByName String?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([jobId])
+}
+
 // The check-measure record for a job (P5): structured rooms/dimensions captured
 // on site. One per job; the capture form (P5.2) fills `data`, and completing it
 // (P5.4) diffs against the quote and moves the job to DESIGN.
@@ -474,6 +495,7 @@ model Job {
   cabinets     Cabinet[]
   parts        Part[]
   scheduleBlocks ScheduleBlock[]
+  snags        SnagItem[]
   expenses     Expense[]
 
   notes        String?

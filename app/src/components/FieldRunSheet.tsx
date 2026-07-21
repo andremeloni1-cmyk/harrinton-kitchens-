@@ -10,8 +10,17 @@ type FieldJob = {
   clientName: string | null; clientPhone: string | null; clientEmail: string | null;
   address: string | null; mapsUrl: string | null;
   start: string | null; end: string | null; durationDays: number;
-  accessNotes: string | null; drawings: Drawing[];
+  accessNotes: string | null; drawings: Drawing[]; openSnags: number;
 };
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve((r.result as string).split(",")[1] || "");
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
 
 function fmtTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
@@ -66,8 +75,31 @@ export function FieldRunSheet() {
 
 function FieldCard({ job, onPhotoQueued }: { job: FieldJob; onPhotoQueued: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const snagPhotoRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [snagOpen, setSnagOpen] = useState(false);
+  const [snagNote, setSnagNote] = useState("");
+  const [snagPhoto, setSnagPhoto] = useState<File | null>(null);
+  const [openSnags, setOpenSnags] = useState(job.openSnags);
+
+  async function raiseSnag() {
+    if (!snagNote.trim()) return;
+    setBusy(true);
+    try {
+      const fileData = snagPhoto ? await fileToBase64(snagPhoto) : undefined;
+      await fetch(`/api/jobs/${job.id}/snags`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ note: snagNote, fileData, mimeType: snagPhoto?.type }),
+      });
+      setOpenSnags((n) => n + 1);
+      setSnagNote(""); setSnagPhoto(null); setSnagOpen(false);
+      setMsg("Snag raised");
+    } catch {
+      setMsg("Couldn't raise the snag — try again on signal");
+    } finally { setBusy(false); }
+  }
 
   async function addPhotos(files: FileList | null) {
     const picked = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
@@ -146,13 +178,34 @@ function FieldCard({ job, onPhotoQueued }: { job: FieldJob; onPhotoQueued: () =>
           )}
         </div>
 
-        <button
-          className="w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white active:scale-[0.99] disabled:opacity-50"
-          disabled={busy}
-          onClick={() => fileRef.current?.click()}
-        >
-          {busy ? "Adding…" : "📷 Add site photos"}
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="rounded-xl bg-brand-600 py-3 text-sm font-bold text-white active:scale-[0.99] disabled:opacity-50"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {busy ? "…" : "📷 Photos"}
+          </button>
+          <button
+            className="rounded-xl bg-stone-100 py-3 text-sm font-bold text-stone-700 active:scale-[0.99] disabled:opacity-50 dark:bg-night-800 dark:text-slate-200"
+            disabled={busy}
+            onClick={() => setSnagOpen((v) => !v)}
+          >
+            ⚠ Snag{openSnags > 0 ? ` (${openSnags})` : ""}
+          </button>
+        </div>
+
+        {snagOpen && (
+          <div className="space-y-2 rounded-xl bg-stone-50 p-3 dark:bg-night-800">
+            <input className="input" value={snagNote} onChange={(e) => setSnagNote(e.target.value)} placeholder="What needs fixing?" />
+            <div className="flex gap-2">
+              <button className="btn-secondary flex-1" onClick={() => snagPhotoRef.current?.click()}>{snagPhoto ? "1 photo" : "📷 Add photo"}</button>
+              <button className="btn-accent flex-1" disabled={busy || !snagNote.trim()} onClick={raiseSnag}>{busy ? "…" : "Raise"}</button>
+            </div>
+            <input ref={snagPhotoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => setSnagPhoto(e.target.files?.[0] ?? null)} />
+          </div>
+        )}
+
         {msg && <p className="text-center text-xs text-stone-500 dark:text-slate-400">{msg}</p>}
         <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => addPhotos(e.target.files)} />
       </div>
