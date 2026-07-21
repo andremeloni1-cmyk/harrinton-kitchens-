@@ -9,6 +9,7 @@ import { JobForm } from "@/components/JobForm";
 import { LeadInbox } from "@/components/LeadInbox";
 import { AtRiskJobs } from "@/components/AtRiskJobs";
 import { MaintenanceInbox } from "@/components/MaintenanceInbox";
+import { BriefCard } from "@/components/BriefCard";
 import { Brand } from "@/components/Brand";
 import { BrandMark } from "@/components/BrandMark";
 import { api, type JobDTO } from "@/lib/job";
@@ -420,6 +421,9 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
         </div>
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm">→</span>
       </Link>
+
+      {/* Role-aware morning brief */}
+      <BriefCard />
 
       {/* Production jobs at schedule risk (quiet when all's well) */}
       <AtRiskJobs />
