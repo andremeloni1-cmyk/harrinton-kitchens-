@@ -6,6 +6,8 @@ import Link from "next/link";
 import { StagePill } from "@/components/StagePill";
 import { StageTimeline } from "@/components/StageTimeline";
 import { SiteVisitBooking } from "@/components/SiteVisitBooking";
+import { DrawingSets } from "@/components/DrawingSets";
+import { VariationList } from "@/components/VariationList";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -505,6 +507,12 @@ export default function JobDetailPage() {
       {/* Site visits — consultation and check measure */}
       <SiteVisitBooking jobId={id} type="CONSULT" />
       <SiteVisitBooking jobId={id} type="CHECK_MEASURE" />
+
+      {/* Design drawings — sets and revisions */}
+      <DrawingSets jobId={id} />
+
+      {/* Variations — scope changes, priced and sent for approval */}
+      <VariationList jobId={id} />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">

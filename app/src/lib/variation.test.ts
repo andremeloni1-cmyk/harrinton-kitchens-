@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { extractMm, capturedMm, findDiscrepancies, variationDraftFrom } from "./variation";
+import {
+  extractMm,
+  capturedMm,
+  findDiscrepancies,
+  variationDraftFrom,
+  approvedVariationCents,
+  contractTotalCents,
+  variationLineItems,
+} from "./variation";
 import { emptyRoom, type CheckMeasureData } from "./measure";
 
 describe("extractMm", () => {
@@ -55,6 +63,31 @@ describe("findDiscrepancies", () => {
     const measure = measureWith({ walls: [3640] }); // 40mm off
     expect(findDiscrepancies(measure, "3600mm", 50)).toEqual([]); // within tolerance
     expect(findDiscrepancies(measure, "3600mm", 20)).toHaveLength(1); // outside
+  });
+});
+
+describe("variation money", () => {
+  const vars = [
+    { status: "approved", title: "Extra drawers", amountCents: 45000 },
+    { status: "approved", title: "Stone upgrade", amountCents: 120000 },
+    { status: "sent", title: "Not yet approved", amountCents: 99999 },
+    { status: "approved", title: "Delete pantry (credit)", amountCents: -30000 },
+  ];
+
+  it("sums only approved variations, including credits", () => {
+    expect(approvedVariationCents(vars)).toBe(45000 + 120000 - 30000); // 135000
+  });
+
+  it("adjusts the contract value by the approved total", () => {
+    expect(contractTotalCents(500000, vars)).toBe(635000);
+    expect(contractTotalCents(500000, [])).toBe(500000);
+  });
+
+  it("emits approved variations as ex-GST line items", () => {
+    const lines = variationLineItems(vars);
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toEqual({ description: "Variation: Extra drawers", quantity: 1, unitAmount: 450 });
+    expect(lines[2]).toEqual({ description: "Variation: Delete pantry (credit)", quantity: 1, unitAmount: -300 });
   });
 });
 

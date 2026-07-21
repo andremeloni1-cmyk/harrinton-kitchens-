@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Invoice, Job } from "@prisma/client";
 import { logActivity } from "@/lib/automations";
 import { findOrCreateClientForJob } from "@/lib/clients";
+import { variationLineItems } from "@/lib/variation";
 import { isXeroConnected } from "@/lib/xero/oauth";
 import { findOrCreateContact } from "@/lib/xero/contacts";
 import { pushInvoice, fetchInvoiceStates, setInvoiceStatus } from "@/lib/xero/invoices";
@@ -72,13 +73,17 @@ export async function createInvoiceFromJob(
 ): Promise<Invoice> {
   const client = await findOrCreateClientForJob(job);
 
-  // Line priority: explicit lines → the job's component estimate → one line
-  // from the quote amount.
+  // Line priority: explicit lines (e.g. a deposit) → the job's component
+  // estimate → one line from the quote amount. When not billing explicit lines,
+  // approved variations are appended so the final invoice reflects the agreed
+  // contract value.
   const estimate = parseLineItems(job.estimateItems ?? "[]");
-  const lineItems: LineItem[] =
-    opts.lineItems && opts.lineItems.length > 0
-      ? opts.lineItems
-      : estimate.length > 0
+  let lineItems: LineItem[];
+  if (opts.lineItems && opts.lineItems.length > 0) {
+    lineItems = opts.lineItems;
+  } else {
+    const base: LineItem[] =
+      estimate.length > 0
         ? estimate
         : [
             {
@@ -88,6 +93,9 @@ export async function createInvoiceFromJob(
               unitAmount: job.quoteAmount ?? 0,
             },
           ];
+    const variations = await prisma.variation.findMany({ where: { jobId: job.id } });
+    lineItems = [...base, ...variationLineItems(variations)];
+  }
   const { subtotal, tax, total } = computeTotals(lineItems);
   const issueDate = opts.issueDate ?? new Date();
   const dueDate =
