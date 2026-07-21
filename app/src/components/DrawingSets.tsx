@@ -96,6 +96,16 @@ export function DrawingSets({ jobId }: { jobId: string }) {
       await load();
     } finally { setBusy(null); }
   }
+  async function summarize(revId: string) {
+    setBusy(`sum-${revId}`);
+    try {
+      const res = await api<{ ok: boolean; message?: string }>(`/api/jobs/${jobId}/drawings/revisions/${revId}/summarize`, { method: "POST" });
+      if (!res.ok && res.message) alert(res.message);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't summarise.");
+    } finally { setBusy(null); }
+  }
 
   if (!loaded) return null;
 
@@ -176,6 +186,11 @@ export function DrawingSets({ jobId }: { jobId: string }) {
                       )}
                       {rev.status === "approved" && (
                         <button className="btn-primary py-1.5 text-sm" disabled={busy === `st-${rev.id}`} onClick={() => setStatus(rev, "released")}>Release to factory</button>
+                      )}
+                      {rev.documents.length > 0 && (
+                        <button className="btn-ghost py-1.5 text-sm text-brand-600" disabled={busy === `sum-${rev.id}`} onClick={() => summarize(rev.id)}>
+                          {busy === `sum-${rev.id}` ? "Reading…" : rev.summary ? "↻ Re-summarise" : "✨ Summarise changes"}
+                        </button>
                       )}
                     </div>
                     {locked && <p className="mt-2 text-xs text-stone-400 dark:text-slate-500">Locked — create a new revision to make changes.</p>}
