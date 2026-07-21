@@ -27,5 +27,26 @@ export async function POST(req: Request, { params }: Params) {
     data: { drawingSetId: setId, label, notes },
   });
   await logActivity(id, "note", `Drawing revision ${label} started (${set.name})`);
-  return json({ revision: { id: revision.id, label: revision.label, status: revision.status } }, 201);
+
+  // Enforcement: once a revision in this set has been approved/released, any new
+  // revision is a post-approval change and needs a variation — draft one so it
+  // can't slip through unpriced.
+  const priorLocked = await prisma.drawingRevision.count({
+    where: { drawingSetId: setId, status: { in: ["approved", "released"] } },
+  });
+  let variationRaised = false;
+  if (priorLocked > 0) {
+    await prisma.variation.create({
+      data: {
+        jobId: id,
+        title: `Post-approval change — ${set.name} ${label}`,
+        description: "Drawings changed after client approval. Price this and send it for approval.",
+        source: "design_change",
+      },
+    });
+    await logActivity(id, "note", `Post-approval drawing change on ${set.name} — variation drafted`);
+    variationRaised = true;
+  }
+
+  return json({ revision: { id: revision.id, label: revision.label, status: revision.status }, variationRaised }, 201);
 }

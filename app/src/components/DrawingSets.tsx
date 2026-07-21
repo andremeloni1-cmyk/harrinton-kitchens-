@@ -62,7 +62,8 @@ export function DrawingSets({ jobId }: { jobId: string }) {
   async function addRevision(setId: string) {
     setBusy(`rev-${setId}`);
     try {
-      await api(`/api/jobs/${jobId}/drawings/${setId}/revisions`, { method: "POST", body: JSON.stringify({}) });
+      const res = await api<{ variationRaised?: boolean }>(`/api/jobs/${jobId}/drawings/${setId}/revisions`, { method: "POST", body: JSON.stringify({}) });
+      if (res.variationRaised) alert("This is a post-approval change — a variation has been drafted below. Price it and send it for approval.");
       await load();
     } finally { setBusy(null); }
   }

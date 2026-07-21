@@ -75,6 +75,30 @@ export function findDiscrepancies(
   return out;
 }
 
+// --- Variation money (P6.4) -----------------------------------------------
+// Amounts are ex-GST integer cents (a variation can be a credit — negative).
+
+type VariationLike = { status: string; title: string; amountCents: number };
+
+/** Total ex-GST cents of the approved variations only. */
+export function approvedVariationCents(variations: VariationLike[]): number {
+  return variations
+    .filter((v) => v.status === "approved")
+    .reduce((sum, v) => sum + (Number.isFinite(v.amountCents) ? v.amountCents : 0), 0);
+}
+
+/** The job's contract value: the base (accepted quote) plus approved variations. */
+export function contractTotalCents(baseCents: number, variations: VariationLike[]): number {
+  return (Number.isFinite(baseCents) ? baseCents : 0) + approvedVariationCents(variations);
+}
+
+/** Approved variations as invoice/quote line items (dollars, ex GST). */
+export function variationLineItems(variations: VariationLike[]): { description: string; quantity: number; unitAmount: number }[] {
+  return variations
+    .filter((v) => v.status === "approved")
+    .map((v) => ({ description: `Variation: ${v.title}`, quantity: 1, unitAmount: v.amountCents / 100 }));
+}
+
 /** A drafted variation's title + body from a discrepancy list. */
 export function variationDraftFrom(discrepancies: Discrepancy[]): { title: string; description: string } {
   return {
