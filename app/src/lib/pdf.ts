@@ -534,7 +534,7 @@ export async function generateReportPdf(metaIn: Meta, dataIn: ReportData): Promi
 // Quote PDF
 // ---------------------------------------------------------------------------
 
-export type QuoteLine = { description: string; quantity: number; unitAmount: number };
+export type QuoteLine = { description: string; quantity: number; unitAmount: number; isSection?: boolean };
 
 export type QuoteMeta = {
   quoteNumber: string; // e.g. QUO-1001 or the job reference
@@ -549,10 +549,17 @@ export type QuoteMeta = {
   validUntil?: string; // pre-formatted
   notes?: string | null;
   logo?: { base64: string; mime: string } | null;
+  // Precomputed totals (dollars) — when set, the summary block uses these
+  // instead of recomputing, so it matches the caller's cents-exact figures.
+  totals?: { subtotal: number; tax: number; total: number };
+  // Drawings / renders to append as full-page images after the quote. PNG/JPEG
+  // only (pdf-lib can't embed HEIC); bad images are skipped.
+  appendixImages?: { base64: string; mime: string; caption?: string }[];
 };
 
 /** Generates a polished A4 quote/estimate PDF and returns the bytes. Line
- * amounts are tax-exclusive; GST (10%) is added as a summary line. */
+ * amounts are tax-exclusive; GST (10%) is added as a summary line. Lines flagged
+ * `isSection` render as bold group headers. */
 export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]): Promise<Buffer> {
   const currency = metaIn.currency || "AUD";
   const fmt = (n: number) => {
@@ -579,12 +586,17 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
     description: toWinAnsi(l.description) || "Item",
     quantity: Number.isFinite(l.quantity) ? l.quantity : 0,
     unitAmount: Number.isFinite(l.unitAmount) ? l.unitAmount : 0,
+    isSection: l.isSection,
   }));
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
-  const subtotal = round2(lines.reduce((s, l) => s + l.quantity * l.unitAmount, 0));
-  const tax = round2(subtotal * 0.1);
-  const total = round2(subtotal + tax);
+  // Prefer the caller's cents-exact totals; else sum the priced (non-section)
+  // lines and add 10% GST, as the standalone estimate route does.
+  const subtotal = metaIn.totals
+    ? round2(metaIn.totals.subtotal)
+    : round2(lines.filter((l) => !l.isSection).reduce((s, l) => s + l.quantity * l.unitAmount, 0));
+  const tax = metaIn.totals ? round2(metaIn.totals.tax) : round2(subtotal * 0.1);
+  const total = metaIn.totals ? round2(metaIn.totals.total) : round2(subtotal + tax);
 
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -709,6 +721,20 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
   tableHeader();
 
   for (const l of lines) {
+    if (l.isSection) {
+      // Group header row: bold label spanning the table, with a hairline under.
+      if (y - 26 < MARGIN + 24) {
+        newPage();
+        y -= 4;
+        tableHeader();
+      }
+      y -= 4;
+      page.drawText(l.description, { x: descX, y, size: 10.5, font: bold, color: INK });
+      y -= 14;
+      page.drawLine({ start: { x: MARGIN, y: y + 3 }, end: { x: width - MARGIN, y: y + 3 }, thickness: 0.4, color: RULE });
+      y -= 4;
+      continue;
+    }
     const wrapped = wrap(l.description, font, 10, descMaxW);
     const rowH2 = wrapped.length * 14 + 6;
     if (y - rowH2 < MARGIN + 24) {
@@ -759,6 +785,26 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
     ensureSpace(15);
     page.drawText(l, { x: MARGIN, y, size: 10, font, color: MUTED });
     y -= 15;
+  }
+
+  // ---- Appendix: drawings / renders -----------------------------------------
+  for (const im of metaIn.appendixImages || []) {
+    try {
+      const bytes = Buffer.from(im.base64, "base64");
+      const img = im.mime.includes("png") ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+      const ap = pdf.addPage(A4);
+      let ay = height - MARGIN;
+      ap.drawText(toWinAnsi(im.caption || "Attachment"), { x: MARGIN, y: ay, size: 11, font: bold, color: INK });
+      ay -= 20;
+      const maxW = width - MARGIN * 2;
+      const maxH = ay - MARGIN;
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ap.drawImage(img, { x: (width - w) / 2, y: ay - h, width: w, height: h });
+    } catch {
+      /* skip an image pdf-lib can't embed (e.g. HEIC) */
+    }
   }
 
   // ---- Footer on every page -------------------------------------------------

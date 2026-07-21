@@ -142,6 +142,30 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A versioned quote for a job (P4.2). Each edit-and-send makes a new version;
+// the latest is the live one. Line amounts live in `sections` (dollars, ex GST,
+// same shape as invoice lines); the totals are stored in integer cents so the
+// figure the client accepts is exact and feeds the deposit invoice unchanged.
+model Quote {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  version       Int
+  status        String   @default("draft") // draft | sent | accepted | declined | superseded
+  currency      String   @default("AUD")
+  sections      String   @default("[]")    // JSON QuoteSection[] (see lib/quote.ts)
+  marginPct     Float    @default(0)
+  notes         String?
+  subtotalCents Int      @default(0)        // lines + margin, ex GST
+  taxCents      Int      @default(0)        // GST
+  totalCents    Int      @default(0)        // grand total, inc GST
+  acceptedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([jobId, version])
+}
+
 // Job lifecycle: lead -> quoted -> accepted -> scheduled -> in_progress -> completed
 //                                         \-> cancelled (from any state)
 // Superseded by `pipelineStage` (see lib/pipeline.ts) — the full ENQUIRY..MAINTENANCE
@@ -214,6 +238,7 @@ model Job {
   reports      MaintenanceReport[]
   activities   Activity[]
   invoices     Invoice[]
+  quotes       Quote[]
   expenses     Expense[]
 
   notes        String?

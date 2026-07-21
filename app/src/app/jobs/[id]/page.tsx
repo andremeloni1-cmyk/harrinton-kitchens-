@@ -588,6 +588,21 @@ export default function JobDetailPage() {
             </button>
           </div>
         )}
+        <div className="mt-3 border-t border-stone-100 pt-3 dark:border-night-line">
+          <Link
+            href={`/jobs/${id}/quote`}
+            className="flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700 transition active:scale-[0.99] dark:bg-brand-500/15 dark:text-brand-300"
+          >
+            <span className="flex items-center gap-2">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 6h9M8 12h9M8 18h5" strokeLinecap="round" />
+                <circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" />
+              </svg>
+              Quote builder — sections, margin & branded PDF
+            </span>
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
         {estimatePicker && (
           <PriceItemPicker
             companyId={job.companyId}
