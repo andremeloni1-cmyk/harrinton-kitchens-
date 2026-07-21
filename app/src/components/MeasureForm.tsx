@@ -40,6 +40,8 @@ export function MeasureForm({ jobId }: { jobId: string }) {
   const [reading, setReading] = useState(false);
   const [proposal, setProposal] = useState<Room[] | null>(null);
   const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const [completeResult, setCompleteResult] = useState<{ discrepancies: { note: string }[]; variationId: string | null } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sheetInput = useRef<HTMLInputElement>(null);
 
@@ -121,6 +123,25 @@ export function MeasureForm({ jobId }: { jobId: string }) {
     if (withIds[0]) setOpenId(withIds[0].id);
     setProposal(null);
     setAiMsg(null);
+  }
+
+  async function complete() {
+    setCompleting(true);
+    setAiMsg(null);
+    try {
+      // Make sure the latest edits are saved before diffing against the quote.
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      await save(rooms);
+      const res = await api<{ discrepancies: { note: string }[]; variationId: string | null }>(
+        `/api/jobs/${jobId}/measure/complete`,
+        { method: "POST" }
+      );
+      setCompleteResult(res);
+    } catch (e) {
+      setAiMsg(e instanceof Error ? e.message : "Couldn't complete the check measure.");
+    } finally {
+      setCompleting(false);
+    }
   }
 
   if (loading) return <div className="px-4 pt-6 text-stone-400 dark:text-slate-500">Loading…</div>;
@@ -237,6 +258,34 @@ export function MeasureForm({ jobId }: { jobId: string }) {
         <p className="mt-3 text-center text-sm text-stone-400 dark:text-slate-500">
           Add a room by hand, or photograph a site sheet and let AI read it. Everything saves as you go — even offline.
         </p>
+      )}
+
+      {/* Complete — diffs against the quote, drafts a variation, moves to Design */}
+      {rooms.length > 0 && (
+        <div className="mt-6 border-t border-stone-100 pt-4 dark:border-night-line">
+          {completeResult ? (
+            <div className="card border-l-4 border-emerald-400 p-4">
+              <p className="font-semibold text-stone-900 dark:text-slate-100">Check measure complete — moved to Design</p>
+              {completeResult.discrepancies.length === 0 ? (
+                <p className="mt-1 text-sm text-stone-600 dark:text-slate-300">No discrepancies against the quote.</p>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm font-medium text-amber-700 dark:text-amber-300">
+                    {completeResult.discrepancies.length} discrepanc{completeResult.discrepancies.length === 1 ? "y" : "ies"} vs the quote — a draft variation has been raised:
+                  </p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-stone-600 dark:text-slate-300">
+                    {completeResult.discrepancies.map((d, i) => (<li key={i}>{d.note}</li>))}
+                  </ul>
+                </>
+              )}
+              <Link href={`/jobs/${jobId}`} className="btn-secondary mt-3 inline-flex">Back to job</Link>
+            </div>
+          ) : (
+            <button className="btn-primary w-full" disabled={completing} onClick={complete}>
+              {completing ? "Completing…" : "Complete check measure → Design"}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

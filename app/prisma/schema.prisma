@@ -143,6 +143,23 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A scope variation on a job (P5.4 drafts them from check-measure discrepancies;
+// pricing + portal approval land in P6.4). Amount is ex-GST integer cents.
+model Variation {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  amountCents Int      @default(0)
+  status      String   @default("draft") // draft | sent | approved | declined
+  source      String   @default("check_measure")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([jobId])
+}
+
 // The check-measure record for a job (P5): structured rooms/dimensions captured
 // on site. One per job; the capture form (P5.2) fills `data`, and completing it
 // (P5.4) diffs against the quote and moves the job to DESIGN.
@@ -292,6 +309,7 @@ model Job {
   approvals    Approval[]
   siteVisits   SiteVisit[]
   checkMeasure CheckMeasure?
+  variations   Variation[]
   expenses     Expense[]
 
   notes        String?
