@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/job";
 import { VISIT_META, type VisitType } from "@/lib/visits";
 
@@ -148,6 +149,16 @@ export function SiteVisitBooking({ jobId, type }: { jobId: string; type: VisitTy
             <button className="btn-ghost" onClick={() => { setOpen(false); setClash(null); setError(null); }}>Cancel</button>
           </div>
         </div>
+      )}
+
+      {type === "CHECK_MEASURE" && (
+        <Link
+          href={`/jobs/${jobId}/measure`}
+          className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+        >
+          Open the on-site capture form
+          <span aria-hidden>→</span>
+        </Link>
       )}
     </div>
   );
