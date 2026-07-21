@@ -9,6 +9,7 @@ import { clientMilestones, whatsNext } from "@/lib/portal-timeline";
 import { PortalQuotes } from "@/components/PortalQuotes";
 import { PortalDrawings } from "@/components/PortalDrawings";
 import { PortalVariations } from "@/components/PortalVariations";
+import { PortalInvoices } from "@/components/PortalInvoices";
 import { getPortalClient } from "@/lib/portal-session";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +86,7 @@ export default async function PortalPage() {
       <PortalQuotes />
       <PortalDrawings />
       <PortalVariations />
+      <PortalInvoices />
 
       <div className="space-y-4">
         {jobs.map((job) => {
