@@ -143,6 +143,26 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A visit to site by a staff member — a sales consultation (P4.4) or a check
+// measure (P5). Assignee is a staff User (denormalised name for display).
+model SiteVisit {
+  id             String    @id @default(cuid())
+  jobId          String
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  type           String    @default("CONSULT") // CONSULT | CHECK_MEASURE
+  assigneeId     String?
+  assigneeName   String?
+  scheduledStart DateTime
+  scheduledEnd   DateTime?
+  notes          String?
+  status         String    @default("scheduled") // scheduled | done | cancelled
+  googleEventId  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([jobId])
+}
+
 // A client's decision on a quote (P4.3) or, later, a design revision (P6). The
 // signature is a typed name captured with a timestamp and IP for the record.
 model Approval {
@@ -256,6 +276,7 @@ model Job {
   invoices     Invoice[]
   quotes       Quote[]
   approvals    Approval[]
+  siteVisits   SiteVisit[]
   expenses     Expense[]
 
   notes        String?

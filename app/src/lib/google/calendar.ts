@@ -105,6 +105,37 @@ export async function upsertJobEvent(
   return ids;
 }
 
+/**
+ * Create a standalone calendar event (e.g. a site consultation) and return its
+ * id, or null in demo mode. Not tagged as a job event, so the two-way job sync
+ * ignores it. Remove it later with deleteJobEvent(id).
+ */
+export async function createEvent(opts: {
+  summary: string;
+  description?: string;
+  location?: string | null;
+  start: Date;
+  end: Date;
+  colorId?: string;
+}): Promise<string | null> {
+  const auth = await getAuthorizedClient();
+  if (!auth) return null;
+  const calendar = google.calendar({ version: "v3", auth });
+  const tz = businessTimeZone();
+  const res = await calendar.events.insert({
+    calendarId: await calendarId(),
+    requestBody: {
+      summary: opts.summary,
+      description: opts.description,
+      location: opts.location || undefined,
+      colorId: opts.colorId,
+      start: { dateTime: wallClock(opts.start), timeZone: tz },
+      end: { dateTime: wallClock(opts.end), timeZone: tz },
+    },
+  });
+  return res.data.id || null;
+}
+
 export type ExternalEvent = {
   id: string;
   title: string;
