@@ -96,8 +96,26 @@ model Client {
   jobs          Job[]
   invoices      Invoice[]
   portalTokens  ClientPortalToken[]
+  maintenanceRequests MaintenanceRequest[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// A service/warranty request raised by a client on their portal (P10.5). The
+// office triages it and converts it into a MAINTENANCE job.
+model MaintenanceRequest {
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sourceJobId    String?  // the original install the request references
+  message        String
+  phone          String?
+  status         String   @default("pending") // pending | converted | dismissed
+  convertedJobId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
 }
 
 // A single-purpose magic-link token for client-portal sign-in. The raw token
