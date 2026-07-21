@@ -10,6 +10,7 @@ import { LeadInbox } from "@/components/LeadInbox";
 import { AtRiskJobs } from "@/components/AtRiskJobs";
 import { MaintenanceInbox } from "@/components/MaintenanceInbox";
 import { BriefCard } from "@/components/BriefCard";
+import { AskAI } from "@/components/AskAI";
 import { Brand } from "@/components/Brand";
 import { BrandMark } from "@/components/BrandMark";
 import { api, type JobDTO } from "@/lib/job";
@@ -424,6 +425,9 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
 
       {/* Role-aware morning brief */}
       <BriefCard />
+
+      {/* Ask AI over the live business snapshot */}
+      <AskAI />
 
       {/* Production jobs at schedule risk (quiet when all's well) */}
       <AtRiskJobs />
