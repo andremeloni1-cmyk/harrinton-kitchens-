@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { StagePill } from "@/components/StagePill";
 import { StageTimeline } from "@/components/StageTimeline";
-import { ConsultBooking } from "@/components/ConsultBooking";
+import { SiteVisitBooking } from "@/components/SiteVisitBooking";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -502,8 +502,9 @@ export default function JobDetailPage() {
         </div>
       )}
 
-      {/* Consultation booking */}
-      <ConsultBooking jobId={id} />
+      {/* Site visits — consultation and check measure */}
+      <SiteVisitBooking jobId={id} type="CONSULT" />
+      <SiteVisitBooking jobId={id} type="CHECK_MEASURE" />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">

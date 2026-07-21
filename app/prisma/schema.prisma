@@ -143,6 +143,20 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// The check-measure record for a job (P5): structured rooms/dimensions captured
+// on site. One per job; the capture form (P5.2) fills `data`, and completing it
+// (P5.4) diffs against the quote and moves the job to DESIGN.
+model CheckMeasure {
+  id          String    @id @default(cuid())
+  jobId       String    @unique
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  data        String    @default("{}") // JSON { rooms: Room[] } — see lib/measure.ts
+  status      String    @default("draft") // draft | complete
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
 // A visit to site by a staff member — a sales consultation (P4.4) or a check
 // measure (P5). Assignee is a staff User (denormalised name for display).
 model SiteVisit {
@@ -277,6 +291,7 @@ model Job {
   quotes       Quote[]
   approvals    Approval[]
   siteVisits   SiteVisit[]
+  checkMeasure CheckMeasure?
   expenses     Expense[]
 
   notes        String?
