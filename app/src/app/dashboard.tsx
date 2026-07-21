@@ -11,6 +11,7 @@ import { AtRiskJobs } from "@/components/AtRiskJobs";
 import { MaintenanceInbox } from "@/components/MaintenanceInbox";
 import { BriefCard } from "@/components/BriefCard";
 import { AskAI } from "@/components/AskAI";
+import { RiskCard } from "@/components/RiskCard";
 import { Brand } from "@/components/Brand";
 import { BrandMark } from "@/components/BrandMark";
 import { api, type JobDTO } from "@/lib/job";
@@ -428,6 +429,9 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
 
       {/* Ask AI over the live business snapshot */}
       <AskAI />
+
+      {/* Weekly risk digest (quiet when clear) */}
+      <RiskCard />
 
       {/* Production jobs at schedule risk (quiet when all's well) */}
       <AtRiskJobs />
