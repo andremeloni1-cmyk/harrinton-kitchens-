@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { StatusPill } from "./StatusPill";
+import { StagePill } from "./StagePill";
 import { fmtMoney, fmtDay, fmtRange } from "@/lib/format";
 import type { JobDTO } from "@/lib/job";
 
-/** A confirmed/scheduled job that still has no PDF plan on file. */
+// Confirmed work (past enquiry, still live) that has no PDF plan on file yet.
+const AWAITING_STAGES = ["DEPOSIT", "CHECK_MEASURE", "DESIGN", "APPROVAL", "PRODUCTION", "QUALITY", "DELIVERY", "INSTALL"];
 function awaitingPlans(job: JobDTO): boolean {
-  if (!["accepted", "scheduled", "in_progress"].includes(job.status)) return false;
+  if (!AWAITING_STAGES.includes(job.pipelineStage)) return false;
   const docs = job.documents || [];
   return !docs.some((d) => /\.pdf$/i.test(d.name));
 }
@@ -29,7 +30,7 @@ export function JobCard({ job }: { job: JobDTO }) {
               {job.companyName && job.clientName ? ` · ${job.clientName}` : ""}
             </p>
           </div>
-          <StatusPill status={job.status} />
+          <StagePill stage={job.pipelineStage} />
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-stone-600 dark:text-slate-300">

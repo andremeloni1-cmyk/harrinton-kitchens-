@@ -9,13 +9,40 @@ import { JobForm } from "@/components/JobForm";
 import { LeadInbox } from "@/components/LeadInbox";
 import { Brand } from "@/components/Brand";
 import { BrandMark } from "@/components/BrandMark";
-import { JOB_STATUSES, STATUS_LABELS } from "@/lib/types";
 import { api, type JobDTO } from "@/lib/job";
+import {
+  STAGE_GROUPS,
+  STAGE_GROUP_META,
+  stageGroup,
+  isStage,
+  isTerminalStage,
+} from "@/lib/pipeline";
 import { workdaySegments, jobEnd, startOfWeek, WORKDAY_MINS, WORK_END_HOUR, WORK_END_MIN } from "@/lib/schedule";
 import { fmtDay, fmtTime, fmtMoney } from "@/lib/format";
 import { workloadBarColor } from "@/components/WorkloadCard";
 
-const FILTERS = ["active", ...JOB_STATUSES] as const;
+// The dashboard filters by pipeline stage group (P3.3). "Active" is live work;
+// "Closed" is lost/cancelled. Completed jobs (handover/maintenance) sit in Field.
+const FILTERS = ["active", ...STAGE_GROUPS, "closed"] as const;
+
+function isActiveStage(stage: string): boolean {
+  if (!isStage(stage)) return true;
+  if (isTerminalStage(stage)) return false;
+  return stage !== "HANDOVER" && stage !== "MAINTENANCE";
+}
+
+function matchesFilter(job: JobDTO, filter: string): boolean {
+  const stage = job.pipelineStage;
+  if (filter === "active") return isActiveStage(stage);
+  if (!isStage(stage)) return false;
+  if (filter === "closed") return stageGroup(stage) === "closed";
+  return stageGroup(stage) === filter;
+}
+
+function filterLabel(filter: string): string {
+  if (filter === "active") return "Active";
+  return STAGE_GROUP_META[filter as keyof typeof STAGE_GROUP_META].label;
+}
 
 // Jobs the owner should look at before anything else on the dashboard.
 type AttentionKind = "flagged" | "overdue" | "unscheduled" | "unbilled";
@@ -122,12 +149,7 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
   }, [filter, query]);
 
   const filtered = useMemo(() => {
-    let list = jobs;
-    if (filter === "active") {
-      list = list.filter((j) => !["completed", "cancelled"].includes(j.status));
-    } else {
-      list = list.filter((j) => j.status === filter);
-    }
+    let list = jobs.filter((j) => matchesFilter(j, filter));
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(
@@ -144,24 +166,23 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
   }, [jobs, filter, query]);
 
   const counts = useMemo(() => {
-    const active = jobs.filter((j) => !["completed", "cancelled"].includes(j.status)).length;
-    // Matches the "Scheduled" filter chip so tapping the stat shows exactly
-    // this many jobs (previously counted anything with a date, even completed).
-    const scheduled = jobs.filter((j) => j.status === "scheduled").length;
+    const active = jobs.filter((j) => isActiveStage(j.pipelineStage)).length;
+    // Jobs booked in for install (the field group's install stage).
+    const onSite = jobs.filter((j) => j.pipelineStage === "INSTALL").length;
     // Pipeline value: quotes for work still on the books. Completed jobs are
     // earnings, not pipeline — they belong in Reports, not this tile.
     const value = jobs
-      .filter((j) => !["completed", "cancelled"].includes(j.status))
+      .filter((j) => isActiveStage(j.pipelineStage))
       .reduce((sum, j) => sum + (j.quoteAmount || 0), 0);
-    return { active, scheduled, value };
+    return { active, onSite, value };
   }, [jobs]);
 
   // Per-chip counts for the filter row.
   const chipCounts = useMemo(() => {
-    const m: Record<string, number> = { active: counts.active };
-    for (const j of jobs) m[j.status] = (m[j.status] || 0) + 1;
+    const m: Record<string, number> = {};
+    for (const f of FILTERS) m[f] = jobs.filter((j) => matchesFilter(j, f)).length;
     return m;
-  }, [jobs, counts.active]);
+  }, [jobs]);
 
   // Imported email leads awaiting approval. Collapse duplicates that share the
   // same job name AND client (e.g. a follow-up email about the same job) —
@@ -169,7 +190,7 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
   // version. Keying on the client too stops two different clients' jobs that
   // happen to share a name (e.g. "Kitchen install") from swallowing each other.
   const leads = useMemo(() => {
-    const pending = jobs.filter((j) => j.leadSource && j.status === "lead");
+    const pending = jobs.filter((j) => j.leadSource && j.pipelineStage === "ENQUIRY");
     const newestByName = new Map<string, JobDTO>();
     for (const j of pending) {
       const key = `${j.title.trim().toLowerCase()}|${(j.clientEmail || "").trim().toLowerCase()}`;
@@ -288,9 +309,9 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
     if (!job) return;
     setCancelling(true);
     try {
-      await api(`/api/jobs/${job.id}`, { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) });
+      await api(`/api/jobs/${job.id}`, { method: "PATCH", body: JSON.stringify({ pipelineStage: "CANCELLED" }) });
       setConfirmCancel(null);
-      setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: "cancelled" } : j)));
+      setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: "cancelled", pipelineStage: "CANCELLED" } : j)));
       flash(`Job cancelled — ${job.title}`);
       load({ silent: true });
     } catch {
@@ -480,7 +501,7 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
         <LeadInbox leads={leads} onChanged={load} onScan={scanInbox} scanning={scanning} />
       )}
 
-      {/* Summary — Active/Scheduled tap through to the matching filter */}
+      {/* Summary — Active/On site tap through to the matching filter */}
       <div className="mb-5 grid grid-cols-3 gap-3">
         <Stat
           label="Active"
@@ -492,11 +513,11 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
           }}
         />
         <Stat
-          label="Scheduled"
-          value={String(counts.scheduled)}
-          selected={filter === "scheduled"}
+          label="On site"
+          value={String(counts.onSite)}
+          selected={filter === "field"}
           onClick={() => {
-            setFilter("scheduled");
+            setFilter("field");
             setQuery("");
           }}
         />
@@ -577,7 +598,7 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
                     : "text-stone-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-night-800"
                 }`}
               >
-                {f === "active" ? "Active" : STATUS_LABELS[f as keyof typeof STATUS_LABELS]}
+                {filterLabel(f)}
                 {n > 0 && <span className={`ml-1.5 text-xs ${filter === f ? "text-white/70" : "text-stone-400 dark:text-slate-500"}`}>{n}</span>}
               </button>
             );
@@ -611,7 +632,7 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
             filter={filter}
             onClearSearch={() => setQuery("")}
             onShowActive={() => setFilter("active")}
-            onShowCompleted={() => setFilter("completed")}
+            onShowClosed={() => setFilter("closed")}
           />
         )
       ) : (
@@ -698,16 +719,16 @@ function NoMatches({
   filter,
   onClearSearch,
   onShowActive,
-  onShowCompleted,
+  onShowClosed,
 }: {
   query: string;
   filter: string;
   onClearSearch: () => void;
   onShowActive: () => void;
-  onShowCompleted: () => void;
+  onShowClosed: () => void;
 }) {
   const q = query.trim();
-  const label = filter === "active" ? "active" : (STATUS_LABELS[filter as keyof typeof STATUS_LABELS] || filter).toLowerCase();
+  const label = filterLabel(filter).toLowerCase();
   return (
     <div className="card flex flex-col items-center gap-3 px-6 py-12 text-center">
       <div>
@@ -719,17 +740,12 @@ function NoMatches({
         ) : filter === "active" ? (
           <>
             <p className="font-semibold text-stone-800 dark:text-slate-100">No active jobs right now</p>
-            <p className="text-sm text-stone-500 dark:text-slate-400">Everything on the books is completed or cancelled.</p>
-          </>
-        ) : filter === "lead" ? (
-          <>
-            <p className="font-semibold text-stone-800 dark:text-slate-100">Nothing to confirm</p>
-            <p className="text-sm text-stone-500 dark:text-slate-400">New jobs from your inbox will show up here.</p>
+            <p className="text-sm text-stone-500 dark:text-slate-400">Everything on the books is finished or closed.</p>
           </>
         ) : (
           <>
-            <p className="font-semibold text-stone-800 dark:text-slate-100">No {label} jobs</p>
-            <p className="text-sm text-stone-500 dark:text-slate-400">Nothing with this status at the moment.</p>
+            <p className="font-semibold text-stone-800 dark:text-slate-100">No jobs in {label}</p>
+            <p className="text-sm text-stone-500 dark:text-slate-400">Nothing at this stage of the pipeline right now.</p>
           </>
         )}
       </div>
@@ -738,8 +754,8 @@ function NoMatches({
           Clear search
         </button>
       ) : filter === "active" ? (
-        <button className="btn-secondary" onClick={onShowCompleted}>
-          View completed
+        <button className="btn-secondary" onClick={onShowClosed}>
+          View closed
         </button>
       ) : (
         <button className="btn-secondary" onClick={onShowActive}>

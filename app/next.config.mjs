@@ -1,6 +1,14 @@
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+const appDir = dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Pin the workspace root to this app dir so Next doesn't infer it from a
+  // stray parent lockfile (deploy hosts can have one at /root, etc.).
+  turbopack: { root: appDir },
   // googleapis / prisma / pdf-lib are server-only; keep them out of the client bundle.
   serverExternalPackages: ["googleapis", "@prisma/client", "pdf-lib", "@anthropic-ai/sdk"],
 

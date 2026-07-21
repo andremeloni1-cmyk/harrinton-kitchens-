@@ -8,6 +8,10 @@ import { jobTemplateVars, resolveTemplate } from "@/lib/email-templates";
 import { isScheduledStatus } from "@/lib/types";
 import { autoDraftInvoiceOnComplete } from "@/lib/invoices";
 import { jobEnd, businessTimeZone, WORK_START_HOUR, WORK_START_MIN } from "@/lib/schedule";
+import { effectsForTransition, type StageEffect } from "@/lib/stage-transitions";
+import { stageForLegacyStatus, stageLabel, type PipelineStage } from "@/lib/pipeline";
+import { sendPush } from "@/lib/push";
+import { BRAND } from "@/lib/brand";
 import type { Job } from "@prisma/client";
 
 async function ownerName(): Promise<string> {
@@ -156,53 +160,75 @@ export async function syncJobPdfs(job: Job): Promise<number> {
   return saved;
 }
 
+// Maps each declarative effect (lib/stage-transitions.ts) to its real
+// implementation. Every effect is best-effort and independent: one failing
+// (e.g. Google offline) never blocks the others — the same per-side-effect
+// resilience the old switch had, now applied uniformly.
+const EFFECT_RUNNERS: Record<StageEffect, (job: Job, to: PipelineStage) => Promise<void>> = {
+  calendar_sync: (job) => syncCalendar(job),
+  calendar_remove: (job) => removeCalendar(job),
+  email_accepted: (job) => sendClientEmail(job, "accepted"),
+  email_cancelled: (job) => sendClientEmail(job, "cancelled"),
+  sync_pdfs: async (job) => {
+    // Grab any job PDFs already sitting in the inbox (only when Google is on).
+    if (await isGoogleConnected()) await syncJobPdfs(job);
+  },
+  draft_invoice: (job) => autoDraftInvoiceOnComplete(job),
+  portal_event: (job, to) =>
+    logActivity(job.id, "portal", `${stageLabel(to)} — update shared with the client`),
+  push_office: async (job, to) => {
+    await sendPush({
+      title: BRAND.name,
+      body: `${job.reference} → ${stageLabel(to)}`,
+      url: `/jobs/${job.id}`,
+    });
+  },
+};
+
+/**
+ * Run the side effects for a job entering `toStage` (lib/stage-transitions.ts).
+ * Each effect is isolated and best-effort. Optionally records the stage change
+ * on the Activity timeline — callers that already log a granular status change
+ * pass `logTransition: false` to avoid a duplicate entry.
+ */
+export async function runStageTransition(
+  job: Job,
+  fromStage: PipelineStage,
+  toStage: PipelineStage,
+  opts: { logTransition?: boolean } = {}
+): Promise<void> {
+  if (opts.logTransition && fromStage !== toStage) {
+    await logActivity(
+      job.id,
+      "stage_change",
+      `Stage: ${stageLabel(fromStage)} → ${stageLabel(toStage)}`
+    );
+  }
+  for (const effect of effectsForTransition(fromStage, toStage)) {
+    try {
+      await EFFECT_RUNNERS[effect](job, toStage);
+    } catch {
+      /* best-effort: a failing side effect never blocks the transition */
+    }
+  }
+}
+
 /**
  * Orchestrates everything that should happen when a job's status changes.
+ * The status field still drives changes during the P3.1–P3.2 window, but the
+ * work is now expressed as pipeline-stage effects, so behaviour is identical
+ * whether the change arrives via status or, later, via a direct stage move
+ * (P3.3). Deriving the stages from `status` keeps the target stage guaranteed
+ * valid even if `pipelineStage` ever drifted.
  */
-export async function onStatusChange(
-  job: Job,
-  previousStatus: string
-): Promise<void> {
+export async function onStatusChange(job: Job, previousStatus: string): Promise<void> {
   if (job.status === previousStatus) return;
   await logActivity(job.id, "status_change", `Status: ${previousStatus} → ${job.status}`);
-
-  switch (job.status) {
-    case "accepted":
-    case "scheduled":
-    case "in_progress":
-    case "completed": {
-      await syncCalendar(job);
-      if (job.status === "accepted") {
-        await sendClientEmail(job, "accepted");
-        // Best-effort: grab any job PDFs already sitting in the inbox.
-        if (await isGoogleConnected()) {
-          try {
-            await syncJobPdfs(job);
-          } catch {
-            /* non-fatal */
-          }
-        }
-      }
-      if (job.status === "completed") {
-        // Raise a draft invoice for the finished work (pushed to Xero as a
-        // draft when connected; local-only otherwise). Never blocks the
-        // status change.
-        try {
-          await autoDraftInvoiceOnComplete(job);
-        } catch {
-          /* non-fatal */
-        }
-      }
-      break;
-    }
-    case "cancelled": {
-      await removeCalendar(job);
-      await sendClientEmail(job, "cancelled");
-      break;
-    }
-    default:
-      break;
-  }
+  await runStageTransition(
+    job,
+    stageForLegacyStatus(previousStatus),
+    stageForLegacyStatus(job.status)
+  );
 }
 
 /**

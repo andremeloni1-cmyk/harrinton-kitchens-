@@ -1,22 +1,25 @@
 import { prisma } from "@/lib/db";
 import { json, createJobWithReference } from "@/lib/utils";
 import { logActivity } from "@/lib/automations";
+import { getPortalClient } from "@/lib/portal-session";
 
 export const dynamic = "force-dynamic";
 
-// Public (portal) endpoint: a client requests a maintenance visit. Creates a
-// job to confirm on the dashboard — the same flow as an emailed lead. In
-// production the portal link itself is the secret; here we only accept ids
-// that resolve to a real client.
+// Portal endpoint: the signed-in client requests a maintenance visit. Creates a
+// job to confirm on the dashboard — the same flow as an emailed lead. The client
+// comes from the portal session, so a request can only ever be filed for oneself.
 export async function POST(req: Request) {
+  const portal = await getPortalClient();
+  if (!portal) return json({ error: "unauthorized" }, 401);
+
   const body = await req.json().catch(() => ({}));
-  const clientId = typeof body.clientId === "string" ? body.clientId : "";
   const message = typeof body.message === "string" ? body.message.trim() : "";
-  if (!clientId || !message) return json({ error: "clientId and message are required" }, 400);
+  if (!message) return json({ error: "A message is required" }, 400);
   if (message.length > 2000) return json({ error: "message is too long" }, 400);
 
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  const client = await prisma.client.findUnique({ where: { id: portal.id } });
   if (!client) return json({ error: "not found" }, 404);
+  const clientId = client.id;
 
   // Tie the request back to the original install when one was picked.
   const sourceJob =

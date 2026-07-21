@@ -1,18 +1,23 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
 import { logActivity } from "@/lib/automations";
+import { getPortalClient } from "@/lib/portal-session";
 
 export const dynamic = "force-dynamic";
 
-// Public (portal) endpoint: the client approves a shared plan or requests
-// changes. The document must belong to a job owned by the given client.
+// Portal endpoint: the signed-in client approves a shared plan or requests
+// changes. The client comes from the portal session (not the request body), and
+// the document must belong to a job owned by that client.
 export async function POST(req: Request) {
+  const portal = await getPortalClient();
+  if (!portal) return json({ error: "unauthorized" }, 401);
+  const clientId = portal.id;
+
   const body = await req.json().catch(() => ({}));
-  const clientId = typeof body.clientId === "string" ? body.clientId : "";
   const documentId = typeof body.documentId === "string" ? body.documentId : "";
   const action = body.action === "approve" ? "approve" : body.action === "changes" ? "changes" : null;
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
-  if (!clientId || !documentId || !action) return json({ error: "clientId, documentId and action are required" }, 400);
+  if (!documentId || !action) return json({ error: "documentId and action are required" }, 400);
   if (action === "changes" && !note) return json({ error: "Please describe the changes you'd like." }, 400);
 
   const doc = await prisma.document.findUnique({

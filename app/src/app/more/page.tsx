@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/session";
 import { can, type Permission } from "@/lib/permissions";
+import { LogoutButton } from "@/components/LogoutButton";
 
 const links: {
   href: string;
@@ -48,6 +49,32 @@ const links: {
     ),
   },
   {
+    href: "/factory",
+    title: "Factory",
+    subtitle: "The production floor — station board & part tracking",
+    perm: "factory_board",
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 21V11l5 3v-3l5 3V7l6 3.5V21z" strokeLinejoin="round" />
+        <path d="M3 21h18M7 21v-3M12 21v-3M17 21v-3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/field",
+    title: "Field",
+    subtitle: "Installer run sheets and on-site tools",
+    perm: "field_app",
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 6h10v9H3z" strokeLinejoin="round" />
+        <path d="M13 9h4l4 4v2h-8z" strokeLinejoin="round" />
+        <circle cx="7" cy="17.5" r="1.7" />
+        <circle cx="17" cy="17.5" r="1.7" />
+      </svg>
+    ),
+  },
+  {
     href: "/hardware",
     title: "Hardware & stock",
     subtitle: "Scan QR labels to book in deliveries and build the order list",
@@ -70,6 +97,19 @@ const links: {
       <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M3 3v18h18" strokeLinecap="round" />
         <path d="M7 14l3-4 3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/team",
+    title: "Team",
+    subtitle: "Invite staff, set roles, and manage access",
+    perm: "manage_users",
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3.5 19a5.5 5.5 0 0 1 11 0" strokeLinecap="round" />
+        <path d="M16 6a3 3 0 0 1 0 6M17.5 19a5.5 5.5 0 0 0-2.7-4.7" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -113,6 +153,7 @@ export default async function MorePage() {
           </Link>
         ))}
       </div>
+      <LogoutButton />
     </div>
   );
 }

@@ -10,6 +10,7 @@ export async function GET() {
   const account = await prisma.companySettings.findFirst();
   return json({
     name: account?.name || null,
+    accentColor: account?.accentColor || null,
     logo: account?.logo || null,
     logoMime: account?.logoMime || null,
     logoDark: account?.logoDark || null,

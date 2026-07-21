@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
 import { isAuthenticated } from "@/lib/session";
-import { onStatusChange, onReschedule, removeCalendar } from "@/lib/automations";
+import { onStatusChange, onReschedule, removeCalendar, runStageTransition } from "@/lib/automations";
 import { isOverdue } from "@/lib/invoices";
 import { rememberContact } from "@/lib/contacts";
+import { stageForLegacyStatus, legacyStatusForStage, isStage, type PipelineStage } from "@/lib/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -62,13 +63,35 @@ export async function PATCH(req: Request, { params }: Params) {
   if ("scheduledStart" in body) data.scheduledStart = parseDate(body.scheduledStart);
   if ("scheduledEnd" in body) data.scheduledEnd = parseDate(body.scheduledEnd);
 
-  const statusChanged = "status" in body && body.status !== existing.status;
-  if (statusChanged) {
+  // Pipeline stage is the live lifecycle field the UI drives; a legacy `status`
+  // change is still accepted (e.g. the dashboard's Cancel). Stage wins when both
+  // are present. Either way the two fields are kept mirrored.
+  const stageChanged =
+    "pipelineStage" in body &&
+    isStage(body.pipelineStage) &&
+    body.pipelineStage !== existing.pipelineStage;
+  const statusChanged =
+    !stageChanged && "status" in body && body.status !== existing.status;
+
+  // The status either field resolves to, used for the completion-time stamp.
+  const newStatus = stageChanged
+    ? legacyStatusForStage(body.pipelineStage)
+    : statusChanged
+      ? body.status
+      : existing.status;
+
+  if (stageChanged) {
+    data.pipelineStage = body.pipelineStage;
+    data.status = newStatus; // mirror
+  } else if (statusChanged) {
     data.status = body.status;
-    // Stamp the real completion time the first time a job is completed; clear
-    // it if the job is reopened out of completed.
-    if (body.status === "completed" && !existing.completedAt) data.completedAt = new Date();
-    else if (existing.status === "completed" && body.status !== "completed") data.completedAt = null;
+    data.pipelineStage = stageForLegacyStatus(body.status); // mirror
+  }
+  if (stageChanged || statusChanged) {
+    // Stamp the real completion time the first time a job completes (enters
+    // handover/maintenance); clear it if it's reopened back out.
+    if (newStatus === "completed" && !existing.completedAt) data.completedAt = new Date();
+    else if (existing.status === "completed" && newStatus !== "completed") data.completedAt = null;
   }
 
   const job = await prisma.job.update({ where: { id: (await params).id }, data });
@@ -79,7 +102,14 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   // Run automations after persisting.
-  if (statusChanged) {
+  if (stageChanged) {
+    await runStageTransition(
+      job,
+      existing.pipelineStage as PipelineStage,
+      body.pipelineStage as PipelineStage,
+      { logTransition: true }
+    ).catch(() => {});
+  } else if (statusChanged) {
     await onStatusChange(job, existing.status).catch(() => {});
   } else if (timeChanged && ["accepted", "scheduled", "in_progress"].includes(job.status)) {
     // Feature 2: a "move" — only notify when explicitly requested.

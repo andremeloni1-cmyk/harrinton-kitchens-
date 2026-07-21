@@ -2,6 +2,8 @@ import { json } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { setSessionCookie, clearSessionCookie } from "@/lib/session";
+import { isRole } from "@/lib/roles";
+import { homeForRole } from "@/lib/nav";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,8 @@ export async function POST(req: Request) {
   }
 
   await setSessionCookie(user);
-  return json({ ok: true });
+  const home = homeForRole(isRole(user.role) ? user.role : "OFFICE");
+  return json({ ok: true, home });
 }
 
 export async function DELETE() {

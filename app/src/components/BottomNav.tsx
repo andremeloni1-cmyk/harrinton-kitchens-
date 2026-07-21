@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { api } from "@/lib/job";
 import { BRAND } from "@/lib/brand";
-import { can, type Permission } from "@/lib/permissions";
 import type { Role } from "@/lib/roles";
+import { navKeysFor } from "@/lib/nav";
 
 /** The company display name (CompanySettings.name), falling back to the platform
  * brand. Shared by the desktop side-nav wordmark and kept in step with the header. */
@@ -21,46 +21,43 @@ function useCompanyName(): string {
   return name;
 }
 
-/** The signed-in user's role (null until loaded), for hiding nav they can't use. */
-function useMyRole(): Role | null {
-  const [role, setRole] = useState<Role | null>(null);
-  useEffect(() => {
-    api<{ user: { role: Role } }>("/api/auth/me")
-      .then((r) => r?.user?.role && setRole(r.user.role))
-      .catch(() => {});
-  }, []);
-  return role;
-}
-
-/** Filter nav items to those the role may use. Permissioned items stay hidden
- *  until the role loads (avoids flashing links the user can't access). */
-function visibleFor<T extends { perm?: Permission }>(list: T[], role: Role | null): T[] {
-  return list.filter((i) => !i.perm || (role !== null && can({ role }, i.perm)));
-}
-
-// `match` widens the active state to sibling routes reached from the tab
-// (e.g. Money covers the P&L page, More covers Reports and Settings).
-const items: {
+type NavItem = {
   href: string;
   label: string;
   icon: (props: { className?: string }) => React.ReactElement;
-  match?: string[];
-  perm?: Permission;
-}[] = [
-  { href: "/", label: "Jobs", icon: ClipboardIcon },
-  { href: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { href: "/installers", label: "Installers", icon: HardHatIcon, perm: "manage_jobs" },
-  { href: "/clients", label: "Clients", icon: UsersIcon, perm: "manage_jobs" },
-  { href: "/reports", label: "Reports", icon: ReportIcon },
-  { href: "/more", label: "More", icon: DotsIcon, match: ["/more", "/settings", "/insights", "/invoices", "/pnl", "/prices", "/expenses", "/hardware"] },
-];
+  match?: string[]; // widens the active state to sibling routes reached from the tab
+};
+
+// Every possible nav item, keyed. Which appear (and their order) is decided per
+// role by src/lib/nav.ts — the four surfaces each get their own set.
+const ALL_ITEMS: Record<string, NavItem> = {
+  jobs: { href: "/", label: "Jobs", icon: ClipboardIcon },
+  factory: { href: "/factory", label: "Factory", icon: FactoryIcon, match: ["/factory"] },
+  field: { href: "/field", label: "Field", icon: FieldIcon, match: ["/field"] },
+  calendar: { href: "/calendar", label: "Calendar", icon: CalendarIcon },
+  installers: { href: "/installers", label: "Installers", icon: HardHatIcon },
+  clients: { href: "/clients", label: "Clients", icon: UsersIcon },
+  reports: { href: "/reports", label: "Reports", icon: ReportIcon },
+  more: { href: "/more", label: "More", icon: DotsIcon, match: ["/more", "/settings", "/insights", "/invoices", "/pnl", "/prices", "/expenses", "/hardware", "/team"] },
+};
+
+function itemsForRole(role: Role | null): NavItem[] {
+  return navKeysFor(role)
+    .map((k) => ALL_ITEMS[k])
+    .filter(Boolean);
+}
 
 // The client & installer portals are standalone (their own chrome) — no admin nav.
 function isPortal(pathname: string): boolean {
   return pathname.startsWith("/portal") || pathname.startsWith("/installer-portal");
 }
 
-function isActive(pathname: string, item: (typeof items)[number]): boolean {
+// Public / auth pages that render without the app nav chrome.
+function chromeless(pathname: string): boolean {
+  return pathname === "/login" || pathname === "/enquire" || isPortal(pathname);
+}
+
+function isActive(pathname: string, item: NavItem): boolean {
   return item.match
     ? item.match.some((m) => pathname.startsWith(m))
     : item.href === "/"
@@ -70,12 +67,11 @@ function isActive(pathname: string, item: (typeof items)[number]): boolean {
 
 /** Mobile/tablet bottom tab bar — an iOS-style floating pill dock, inset from
  * the screen edges. Hidden on desktop (lg+), where SideNav takes over. */
-export function BottomNav() {
+export function BottomNav({ role }: { role: Role | null }) {
   const pathname = usePathname();
-  const role = useMyRole();
-  if (pathname === "/login" || isPortal(pathname)) return null;
+  if (chromeless(pathname)) return null;
 
-  const navItems = visibleFor(items, role);
+  const navItems = itemsForRole(role);
   return (
     <nav className="fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-md lg:hidden">
       <div
@@ -110,13 +106,12 @@ export function BottomNav() {
 }
 
 /** Desktop vertical sidebar. Shown only on lg+ (BottomNav is hidden there). */
-export function SideNav() {
+export function SideNav({ role }: { role: Role | null }) {
   const pathname = usePathname();
   const companyName = useCompanyName();
-  const role = useMyRole();
-  if (pathname === "/login" || isPortal(pathname)) return null;
+  if (chromeless(pathname)) return null;
 
-  const navItems = visibleFor(items, role);
+  const navItems = itemsForRole(role);
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-stone-200 bg-white/70 px-4 py-6 backdrop-blur-xl dark:border-night-line dark:bg-night-900/70 lg:flex">
@@ -156,6 +151,26 @@ function ClipboardIcon({ className }: { className?: string }) {
       <rect x="5" y="4" width="14" height="17" rx="2" />
       <path d="M9 4h6v3H9z" />
       <path d="M9 11h6M9 15h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function FactoryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 21V11l5 3v-3l5 3V7l6 3.5V21z" strokeLinejoin="round" />
+      <path d="M3 21h18" strokeLinecap="round" />
+      <path d="M7 21v-3M12 21v-3M17 21v-3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function FieldIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 6h10v9H3z" strokeLinejoin="round" />
+      <path d="M13 9h4l4 4v2h-8z" strokeLinejoin="round" />
+      <circle cx="7" cy="17.5" r="1.7" />
+      <circle cx="17" cy="17.5" r="1.7" />
+      <path d="M9 15.5h6" strokeLinecap="round" />
     </svg>
   );
 }

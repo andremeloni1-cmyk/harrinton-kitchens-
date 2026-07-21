@@ -4,7 +4,22 @@
 
 :root {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: "Space Grotesk", var(--font-sans);
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+
+  /* Default accent ramp (oak/brass), as RGB channels so Tailwind's brand-*
+     colours support opacity. A company's CompanySettings.accentColor overrides
+     these at runtime via a <style> injected in the root layout (see P2.2). */
+  --brand-50: 251 247 238;
+  --brand-100: 243 233 212;
+  --brand-200: 231 211 171;
+  --brand-300: 216 186 126;
+  --brand-400: 198 159 87;
+  --brand-500: 176 132 59;
+  --brand-600: 140 103 48;
+  --brand-700: 111 82 39;
+  --brand-800: 87 64 32;
+  --brand-900: 70 53 29;
+  --brand-950: 39 28 16;
 }
 
 /* The app scrolls inside .app-scroll rather than the document. With the
@@ -30,25 +45,24 @@ body {
   }
 }
 
-/* Soft neutral gradient "table" the frosted cards float on — a calm light-gray
-   wash (palette #DEDEDE) lifting toward white, with a faint warm orange bloom in
-   one corner so the accent quietly tints the glass. */
+/* Warm off-white "paper" the flat cards sit on — a calm cream wash with a faint
+   brass bloom in one corner so the accent quietly warms the page. */
 body {
-  @apply text-slate-800 antialiased;
-  background-color: #e6e6e6;
+  @apply text-stone-800 antialiased;
+  background-color: #f2ede2;
   background-image:
-    radial-gradient(120% 80% at 100% 0%, rgba(242, 86, 35, 0.07) 0%, rgba(242, 86, 35, 0) 45%),
-    radial-gradient(100% 70% at 0% 0%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 55%),
-    linear-gradient(160deg, #ededed 0%, #dedede 55%, #d4d4d4 100%);
+    radial-gradient(120% 80% at 100% 0%, rgba(176, 132, 59, 0.06) 0%, rgba(176, 132, 59, 0) 45%),
+    radial-gradient(100% 70% at 0% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(160deg, #faf7f0 0%, #f2ede2 55%, #ebe4d6 100%);
   background-attachment: fixed;
 }
 html.dark body {
-  @apply text-slate-200;
-  background-color: #0d0d0d;
+  @apply text-stone-200;
+  background-color: #121009;
   background-image:
-    radial-gradient(120% 80% at 100% 0%, rgba(242, 86, 35, 0.1) 0%, rgba(242, 86, 35, 0) 45%),
-    radial-gradient(90% 60% at 0% 0%, rgba(77, 77, 77, 0.25) 0%, rgba(77, 77, 77, 0) 55%),
-    linear-gradient(160deg, #1a1a1a 0%, #121212 55%, #0d0d0d 100%);
+    radial-gradient(120% 80% at 100% 0%, rgba(176, 132, 59, 0.09) 0%, rgba(176, 132, 59, 0) 45%),
+    radial-gradient(90% 60% at 0% 0%, rgba(55, 48, 31, 0.35) 0%, rgba(55, 48, 31, 0) 55%),
+    linear-gradient(160deg, #1c1811 0%, #16130d 55%, #121009 100%);
   background-attachment: fixed;
 }
 
@@ -69,7 +83,7 @@ html.dark {
   h2,
   h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.005em; /* Fraunces is a serif — near-normal tracking reads best */
   }
 }
 
@@ -160,12 +174,12 @@ html.dark {
   100% { background-position: -200% 0; }
 }
 .skeleton {
-  background-image: linear-gradient(100deg, #dedede 30%, #f2f2f2 50%, #dedede 70%);
+  background-image: linear-gradient(100deg, #e7e2d8 30%, #f4f1ea 50%, #e7e2d8 70%);
   background-size: 200% 100%;
   animation: shimmer 1.3s linear infinite;
 }
 html.dark .skeleton {
-  background-image: linear-gradient(100deg, #1f1f1f 30%, #2c2c2c 50%, #1f1f1f 70%);
+  background-image: linear-gradient(100deg, #221d15 30%, #2a241a 50%, #221d15 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -253,26 +267,28 @@ a {
       dark:bg-night-900/55 dark:ring-white/10 dark:shadow-glass-dark;
   }
 
-  /* ---- Bento surfaces ------------------------------------------------- */
-  /* Standard tile: frosted glass with large radius. Everything uses this, so the
-     whole app picks up the frosted look in one place. */
+  /* ---- Workshop Modern surfaces --------------------------------------- */
+  /* Standard tile: flat "paper" with a hairline border and a whisper of shadow.
+     Everything uses this, so the whole app picks up the calmer look in one place.
+     (Frosted glass is reserved for overlays — the nav dock and sheets.) */
   .card {
-    @apply rounded-bento glass p-5 transition duration-200 ease-out;
+    @apply rounded-bento bg-white p-5 ring-1 ring-inset ring-stone-200/80 shadow-card transition duration-200 ease-out
+      dark:bg-night-900 dark:ring-night-line dark:shadow-none;
   }
-  /* Opaque variant — for surfaces that sit on top of other glass (menus,
+  /* Opaque variant — for surfaces that sit on top of a frosted overlay (menus,
      sheets) where stacked translucency would muddy the text. */
   .card-solid {
-    @apply rounded-bento bg-white p-5 shadow-bento transition duration-200 ease-out
+    @apply rounded-bento bg-white p-5 shadow-bento ring-1 ring-inset ring-stone-200/70 transition duration-200 ease-out
       dark:bg-night-900 dark:shadow-none dark:ring-1 dark:ring-night-line;
   }
   /* Add to a tappable card/row: gentle lift on hover, springy press on tap. */
   .tap {
     @apply transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0 active:scale-[0.985];
   }
-  /* Pale-orange accent tile (the "hero" card) — tinted frosted glass. */
+  /* Brass-tinted accent tile (the "hero" card) — warm paper, no glass. */
   .card-hero {
-    @apply rounded-bento bg-brand-100/70 backdrop-blur-xl p-5 text-brand-950 ring-1 ring-inset ring-white/50 shadow-glass
-      dark:bg-brand-500/10 dark:text-brand-50 dark:ring-brand-500/20 dark:shadow-glass-dark;
+    @apply rounded-bento bg-brand-50 p-5 text-brand-950 ring-1 ring-inset ring-brand-200/70 shadow-card
+      dark:bg-brand-500/10 dark:text-brand-50 dark:ring-brand-500/25 dark:shadow-none;
   }
   /* Dark accent tile for emphasis (stats / revenue) — dark in both themes. */
   .card-dark {
@@ -290,15 +306,15 @@ a {
 
   /* ---- Forms --------------------------------------------------------- */
   .input {
-    @apply w-full rounded-2xl border-0 bg-white/60 backdrop-blur px-4 py-2.5 text-sm text-slate-900 ring-1 ring-inset ring-white/70 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none
-      dark:bg-night-850/70 dark:text-slate-100 dark:ring-night-line dark:placeholder:text-slate-500 dark:focus:bg-night-850;
+    @apply w-full rounded-xl border-0 bg-white px-4 py-2.5 text-sm text-stone-900 ring-1 ring-inset ring-stone-200 placeholder:text-stone-400 focus:ring-2 focus:ring-brand-500 outline-none
+      dark:bg-night-850 dark:text-stone-100 dark:ring-night-line dark:placeholder:text-stone-500 dark:focus:ring-brand-500;
   }
   .label {
-    @apply block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5 dark:text-slate-400;
+    @apply block text-xs font-semibold uppercase tracking-wide text-stone-500 mb-1.5 dark:text-stone-400;
   }
-  /* Small uppercase eyebrow label used on bento tiles. */
+  /* Small uppercase eyebrow label used on tiles. */
   .eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400;
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400;
   }
 }
 

@@ -5,6 +5,15 @@ import { ScrollReset } from "@/components/ScrollReset";
 import { OfflineBar } from "@/components/OfflineBar";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
+import { prisma } from "@/lib/db";
+import { getAccentVarsCss } from "@/lib/accent";
+import { AccentInit } from "@/components/AccentInit";
+import { getSessionUser } from "@/lib/session";
+
+// Render every page per-request so the per-company accent (and other runtime
+// settings) always reflect the current CompanySettings — a static prerender
+// would freeze the accent at build time. Fine for a single-instance app.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: `${BRAND.name} — Job Scheduler`,
@@ -18,8 +27,8 @@ export const viewport: Viewport = {
   // showing a solid orange band; applyTheme() keeps it in sync with the
   // in-app theme toggle.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ededed" },
-    { media: "(prefers-color-scheme: dark)", color: "#121212" },
+    { media: "(prefers-color-scheme: light)", color: "#f2ede2" },
+    { media: "(prefers-color-scheme: dark)", color: "#121009" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -30,24 +39,32 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Per-company accent: override the default brass ramp at runtime from one hex.
+  const settings = await prisma.companySettings.findFirst({ select: { accentColor: true } }).catch(() => null);
+  const accentCss = settings?.accentColor ? getAccentVarsCss(settings.accentColor) : null;
+  // Role drives the four-surface nav (office / factory / field); null when signed out.
+  const role = (await getSessionUser().catch(() => null))?.role ?? null;
+
   return (
     <html lang="en-GB" suppressHydrationWarning>
       <head>
         {/* Apply the saved theme before paint to avoid a light flash. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Per-company accent override (falls back to the default brass in globals.css). */}
+        {accentCss && <style dangerouslySetInnerHTML={{ __html: accentCss }} />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Loaded in the browser (root layout = every page), so the single-page-font rule doesn't apply. */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap"
           rel="stylesheet"
         />
       </head>
       <body>
         {/* Desktop-only left sidebar; bottom bar takes over below lg. */}
-        <SideNav />
+        <SideNav role={role} />
         {/* The scroll container — the document itself never scrolls (see
             .app-scroll in globals.css), which keeps the fixed dock rock-steady
             on iOS while Safari's toolbars stay expanded. */}
@@ -58,7 +75,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
         <ScrollReset />
         <OfflineBar />
-        <BottomNav />
+        <AccentInit />
+        <BottomNav role={role} />
       </body>
     </html>
   );

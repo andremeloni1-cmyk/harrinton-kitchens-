@@ -26,6 +26,8 @@ model CompanySettings {
   calendarId         String   @default("primary")
   driveFolderId      String?  // root Drive folder where job PDFs are filed
   signature          String?  // appended to client emails
+  accentColor        String?  // brand accent hex (e.g. "#0d9488"); null = platform brass default
+  depositPercent     Float    @default(30)   // deposit invoice % raised when a quote is accepted
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
@@ -91,8 +93,25 @@ model Client {
   xeroContactId String?   @unique // linked Xero contact (set on first invoice push)
   jobs          Job[]
   invoices      Invoice[]
+  portalTokens  ClientPortalToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// A single-purpose magic-link token for client-portal sign-in. The raw token
+// travels in the emailed link; only its hash is stored. Verifying it sets a
+// separate portal session cookie (see src/lib/portal-session.ts) scoped to this
+// one client's jobs.
+model ClientPortalToken {
+  id         String    @id @default(cuid())
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([clientId])
 }
 
 // A remembered person — name/email/phone captured whenever the owner enters
@@ -124,14 +143,76 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// A visit to site by a staff member — a sales consultation (P4.4) or a check
+// measure (P5). Assignee is a staff User (denormalised name for display).
+model SiteVisit {
+  id             String    @id @default(cuid())
+  jobId          String
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  type           String    @default("CONSULT") // CONSULT | CHECK_MEASURE
+  assigneeId     String?
+  assigneeName   String?
+  scheduledStart DateTime
+  scheduledEnd   DateTime?
+  notes          String?
+  status         String    @default("scheduled") // scheduled | done | cancelled
+  googleEventId  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([jobId])
+}
+
+// A client's decision on a quote (P4.3) or, later, a design revision (P6). The
+// signature is a typed name captured with a timestamp and IP for the record.
+model Approval {
+  id         String   @id @default(cuid())
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  quoteId    String?  // the quote this decision was made on
+  kind       String   @default("quote") // quote | design
+  decision   String   // accepted | changes_requested
+  signerName String?  // typed-name signature
+  comment    String?  // the client's note when requesting changes
+  ip         String?
+  createdAt  DateTime @default(now())
+}
+
+// A versioned quote for a job (P4.2). Each edit-and-send makes a new version;
+// the latest is the live one. Line amounts live in `sections` (dollars, ex GST,
+// same shape as invoice lines); the totals are stored in integer cents so the
+// figure the client accepts is exact and feeds the deposit invoice unchanged.
+model Quote {
+  id            String   @id @default(cuid())
+  jobId         String
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  version       Int
+  status        String   @default("draft") // draft | sent | accepted | declined | superseded
+  currency      String   @default("AUD")
+  sections      String   @default("[]")    // JSON QuoteSection[] (see lib/quote.ts)
+  marginPct     Float    @default(0)
+  notes         String?
+  subtotalCents Int      @default(0)        // lines + margin, ex GST
+  taxCents      Int      @default(0)        // GST
+  totalCents    Int      @default(0)        // grand total, inc GST
+  acceptedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([jobId, version])
+}
+
 // Job lifecycle: lead -> quoted -> accepted -> scheduled -> in_progress -> completed
 //                                         \-> cancelled (from any state)
+// Superseded by `pipelineStage` (see lib/pipeline.ts) — the full ENQUIRY..MAINTENANCE
+// spine. `status` is mirrored from it (P3.1) until the pipeline UI retires it (P3.3).
 model Job {
   id           String    @id @default(cuid())
   reference    String    @unique          // human reference e.g. JOB-1042
   title        String
   description  String?
   status       String    @default("lead") // see lifecycle above
+  pipelineStage String   @default("ENQUIRY") // lib/pipeline.ts; mirrored with status
   priority     String    @default("normal") // low | normal | high
 
   // Scheduling
@@ -193,6 +274,9 @@ model Job {
   reports      MaintenanceReport[]
   activities   Activity[]
   invoices     Invoice[]
+  quotes       Quote[]
+  approvals    Approval[]
+  siteVisits   SiteVisit[]
   expenses     Expense[]
 
   notes        String?

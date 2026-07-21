@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { StatusPill } from "@/components/StatusPill";
+import { StagePill } from "@/components/StagePill";
+import { StageTimeline } from "@/components/StageTimeline";
+import { ConsultBooking } from "@/components/ConsultBooking";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -18,6 +20,17 @@ import { fmtMoney, fmtDay, fmtRange, relativeTime } from "@/lib/format";
 import { api, type JobDTO } from "@/lib/job";
 import { queueMutation } from "@/lib/offline-queue";
 import type { ChecklistItem } from "@/lib/pdf";
+import {
+  PIPELINE_STAGES,
+  STAGE_META,
+  STAGE_GROUPS,
+  STAGE_GROUP_META,
+  stageLabel,
+  nextStage,
+  isStage,
+  isTerminalStage,
+  type PipelineStage,
+} from "@/lib/pipeline";
 
 // Persist a background PATCH; if it fails (offline), queue it to replay when
 // the connection returns.
@@ -51,14 +64,8 @@ function parseChecklist(raw?: string): ChecklistItem[] {
   return [];
 }
 
-const NEXT_ACTIONS: Record<string, { status: string; label: string; style: string }[]> = {
-  lead: [{ status: "accepted", label: "Confirm job", style: "btn-primary" }],
-  accepted: [{ status: "in_progress", label: "Start work", style: "btn-primary" }],
-  scheduled: [{ status: "in_progress", label: "Start work", style: "btn-primary" }],
-  in_progress: [{ status: "completed", label: "Mark complete", style: "btn-primary" }],
-  completed: [],
-  cancelled: [{ status: "accepted", label: "Reopen", style: "btn-secondary" }],
-};
+const stagesInGroup = (g: (typeof STAGE_GROUPS)[number]): PipelineStage[] =>
+  PIPELINE_STAGES.filter((s) => STAGE_META[s].group === g);
 
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +75,7 @@ export default function JobDetailPage() {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
+  const [showStages, setShowStages] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -211,13 +219,15 @@ export default function JobDetailPage() {
     }
   }
 
-  async function changeStatus(status: string) {
+  async function changeStage(stage: string) {
     if (!job) return;
     setBusy(true);
+    setShowStages(false);
     try {
-      await api(`/api/jobs/${job.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
-      if (status === "accepted") flash("Accepted — calendar updated & client emailed (if Google connected)");
-      else if (status === "cancelled") flash("Cancelled — calendar cleared & client emailed");
+      await api(`/api/jobs/${job.id}`, { method: "PATCH", body: JSON.stringify({ pipelineStage: stage }) });
+      if (stage === "DEPOSIT") flash("Confirmed — calendar updated & client emailed (if Google connected)");
+      else if (stage === "CANCELLED") flash("Cancelled — calendar cleared & client emailed");
+      else flash(`Moved to ${stageLabel(stage)}`);
       await load();
     } finally {
       setBusy(false);
@@ -305,7 +315,9 @@ export default function JobDetailPage() {
   if (loading) return <div className="px-4 pt-6 text-stone-400 dark:text-slate-500">Loading…</div>;
   if (!job) return <div className="px-4 pt-6 text-stone-500 dark:text-slate-400">Job not found. <Link href="/" className="text-brand-600">Back</Link></div>;
 
-  const actions = NEXT_ACTIONS[job.status] || [];
+  const currentStage: PipelineStage = isStage(job.pipelineStage) ? job.pipelineStage : "ENQUIRY";
+  const terminal = isTerminalStage(currentStage);
+  const next = terminal ? null : nextStage(currentStage);
   const latestReport = job.reports?.[0] || null;
 
   return (
@@ -325,7 +337,7 @@ export default function JobDetailPage() {
       <div className="mb-4">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-xl font-bold text-stone-900 dark:text-slate-100">{job.title}</h1>
-          <StatusPill status={job.status} />
+          <StagePill stage={job.pipelineStage} />
         </div>
         <p className="mt-1 text-sm text-stone-500 dark:text-slate-400">{job.reference}</p>
         {job.leadSource && (
@@ -352,22 +364,74 @@ export default function JobDetailPage() {
         )}
       </div>
 
+      {/* Pipeline header — where the job is on the ENQUIRY→HANDOVER spine */}
+      <StageTimeline stage={job.pipelineStage} scheduledStart={job.scheduledStart} completedAt={job.completedAt} />
+
       {/* Primary actions */}
       <div className="mb-4 flex flex-wrap gap-2">
-        {actions.map((a) => (
-          <button key={a.status} className={a.style} disabled={busy} onClick={() => changeStatus(a.status)}>
-            {a.label}
+        {terminal ? (
+          <button className="btn-secondary" disabled={busy} onClick={() => setShowStages(true)}>
+            Reopen job
           </button>
-        ))}
+        ) : (
+          <>
+            {next && (
+              <button className="btn-primary" disabled={busy} onClick={() => changeStage(next)}>
+                Advance to {stageLabel(next)}
+              </button>
+            )}
+            <button className="btn-secondary" disabled={busy} onClick={() => setShowStages(true)}>
+              Change stage
+            </button>
+          </>
+        )}
         <button className="btn-secondary" onClick={() => setRescheduling(true)}>
           {job.scheduledStart ? "Reschedule" : "Schedule"}
         </button>
-        {job.status !== "cancelled" && job.status !== "completed" && (
-          <button className="btn-ghost text-red-600" disabled={busy} onClick={() => changeStatus("cancelled")}>
+        {!terminal && (
+          <button className="btn-ghost text-red-600" disabled={busy} onClick={() => changeStage("CANCELLED")}>
             Cancel job
           </button>
         )}
       </div>
+
+      {/* Stage picker — jump anywhere on the spine, or reopen a closed job */}
+      <Modal open={showStages} onClose={() => setShowStages(false)} title="Move to stage">
+        <div className="space-y-4">
+          {STAGE_GROUPS.map((g) => (
+            <div key={g}>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-slate-500">
+                {STAGE_GROUP_META[g].label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {stagesInGroup(g).map((s) => {
+                  const isCurrent = s === currentStage;
+                  return (
+                    <button
+                      key={s}
+                      disabled={busy || isCurrent}
+                      onClick={() => changeStage(s)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition disabled:opacity-100 ${
+                        isCurrent
+                          ? STAGE_GROUP_META[g].pill
+                          : "bg-white text-stone-600 ring-stone-200 hover:bg-stone-50 dark:bg-night-900 dark:text-slate-300 dark:ring-night-line dark:hover:bg-night-800"
+                      }`}
+                    >
+                      {stageLabel(s)}
+                      {isCurrent && " ·"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div className="border-t border-stone-100 pt-3 dark:border-night-line">
+            <button className="btn-ghost text-red-600" disabled={busy} onClick={() => changeStage("LOST")}>
+              Mark as lost
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Schedule + money card */}
       <div className="card mb-3 divide-y divide-stone-100 dark:divide-night-line">
@@ -437,6 +501,9 @@ export default function JobDetailPage() {
           <p className="whitespace-pre-wrap text-sm text-stone-700 dark:text-slate-200">{job.description}</p>
         </div>
       )}
+
+      {/* Consultation booking */}
+      <ConsultBooking jobId={id} />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">
@@ -525,6 +592,21 @@ export default function JobDetailPage() {
             </button>
           </div>
         )}
+        <div className="mt-3 border-t border-stone-100 pt-3 dark:border-night-line">
+          <Link
+            href={`/jobs/${id}/quote`}
+            className="flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700 transition active:scale-[0.99] dark:bg-brand-500/15 dark:text-brand-300"
+          >
+            <span className="flex items-center gap-2">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 6h9M8 12h9M8 18h5" strokeLinecap="round" />
+                <circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" />
+              </svg>
+              Quote builder — sections, margin & branded PDF
+            </span>
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
         {estimatePicker && (
           <PriceItemPicker
             companyId={job.companyId}

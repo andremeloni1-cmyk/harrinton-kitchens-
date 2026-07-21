@@ -1,0 +1,44 @@
+import { json } from "@/lib/utils";
+import { prisma } from "@/lib/db";
+import { newPortalToken } from "@/lib/portal-session";
+import { sendEmail } from "@/lib/google/gmail";
+import { BRAND } from "@/lib/brand";
+
+export const dynamic = "force-dynamic";
+
+const TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Request a portal magic link. Only emails that match a client on file get one;
+// the response is identical either way so we never reveal who's a client.
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const email = String(body.email || "").toLowerCase().trim();
+  if (!email) return json({ error: "Email is required" }, 400);
+
+  // SQLite has no case-insensitive `equals`, and the client list is small, so
+  // match in memory.
+  const candidates = await prisma.client.findMany({
+    where: { email: { not: null } },
+    select: { id: true, name: true, email: true },
+  });
+  const client = candidates.find((c) => c.email?.toLowerCase().trim() === email);
+
+  if (client) {
+    const { token, tokenHash } = newPortalToken();
+    await prisma.clientPortalToken.create({
+      data: { clientId: client.id, tokenHash, expiresAt: new Date(Date.now() + TTL_MS) },
+    });
+    const link = `${process.env.APP_URL || ""}/api/portal/verify?token=${encodeURIComponent(token)}`;
+    const sent = await sendEmail({
+      to: client.email!,
+      subject: `Your ${BRAND.name} project portal link`,
+      body:
+        `Hi ${client.name},\n\n` +
+        `Here's your secure link to view your kitchen project (valid for 1 hour):\n\n${link}\n\n` +
+        `If you didn't request this, you can ignore this email.`,
+    });
+    if (!sent) console.log(`[demo] Portal sign-in link for ${client.email}: ${link}`);
+  }
+
+  return json({ ok: true });
+}

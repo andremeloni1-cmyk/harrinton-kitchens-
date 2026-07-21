@@ -48,7 +48,8 @@ async function validCookie(value: string | undefined): Promise<boolean> {
   return Number.isFinite(ts) && Date.now() - ts <= MAX_AGE_MS;
 }
 
-export async function middleware(req: NextRequest) {
+// Next 16's "proxy" convention (formerly "middleware").
+export async function proxy(req: NextRequest) {
   // Per-user auth is always on: require a validly-signed, unexpired session
   // cookie (deep validation happens server-side in getSessionUser()).
   const cookie = req.cookies.get("jf_session")?.value;
@@ -60,5 +61,5 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // Gate everything except the auth pages/APIs (login + password reset), static
   // assets, and the client/installer portals (client-facing, own auth).
-  matcher: ["/((?!login|reset|api/auth/login|api/auth/reset|api/branding|api/leads/scan|api/portal|portal|installer-portal|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
+  matcher: ["/((?!login|reset|invite|enquire|api/auth/login|api/auth/reset|api/auth/invite|api/enquire|api/branding|api/leads/scan|api/portal|portal|installer-portal|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
 };
