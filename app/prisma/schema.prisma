@@ -143,6 +143,40 @@ model Installer {
   updatedAt DateTime @updatedAt
 }
 
+// Design drawings for a job (P6). A set groups its revisions (Rev A, B, …);
+// each revision's files are Documents. Approved/released revisions are immutable
+// — a change needs a new revision.
+model DrawingSet {
+  id        String            @id @default(cuid())
+  jobId     String
+  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  revisions DrawingRevision[]
+
+  @@index([jobId])
+}
+
+model DrawingRevision {
+  id            String     @id @default(cuid())
+  drawingSetId  String
+  drawingSet    DrawingSet @relation(fields: [drawingSetId], references: [id], onDelete: Cascade)
+  label         String     // e.g. "Rev A"
+  status        String     @default("draft") // draft | sent | approved | released
+  summary       String?    // AI change summary (internal) — P6.2
+  summaryClient String?    // client-safe rewrite — P6.2
+  notes         String?
+  sentAt        DateTime?
+  approvedAt    DateTime?
+  releasedAt    DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  documents     Document[]
+
+  @@index([drawingSetId])
+}
+
 // A scope variation on a job (P5.4 drafts them from check-measure discrepancies;
 // pricing + portal approval land in P6.4). Amount is ex-GST integer cents.
 model Variation {
@@ -310,6 +344,7 @@ model Job {
   siteVisits   SiteVisit[]
   checkMeasure CheckMeasure?
   variations   Variation[]
+  drawingSets  DrawingSet[]
   expenses     Expense[]
 
   notes        String?
@@ -400,7 +435,12 @@ model Document {
   reviewStatus     String?  // pending | approved | changes_requested
   reviewNote       String?  // the client's comment when requesting changes
   reviewedAt       DateTime?
+  // A drawing revision this file belongs to (P6), when it's a design drawing.
+  drawingRevisionId String?
+  drawingRevision   DrawingRevision? @relation(fields: [drawingRevisionId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
+
+  @@index([drawingRevisionId])
 }
 
 // A trade visit booked against a job's site (plumber, electrician, stone
