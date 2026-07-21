@@ -173,8 +173,22 @@ model DrawingRevision {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   documents     Document[]
+  comments      DrawingComment[]
 
   @@index([drawingSetId])
+}
+
+// A comment on a drawing revision — the client's review thread with the office.
+model DrawingComment {
+  id         String          @id @default(cuid())
+  revisionId String
+  revision   DrawingRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  authorType String          // client | staff
+  authorName String
+  body       String
+  createdAt  DateTime        @default(now())
+
+  @@index([revisionId])
 }
 
 // A scope variation on a job (P5.4 drafts them from check-measure discrepancies;

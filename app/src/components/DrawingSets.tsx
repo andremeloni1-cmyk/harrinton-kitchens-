@@ -5,10 +5,11 @@ import { api } from "@/lib/job";
 import { REVISION_STATUS_LABELS, isRevisionLocked, type RevisionStatus } from "@/lib/drawings";
 
 type Doc = { id: string; name: string; mimeType: string; webViewLink: string | null };
+type Comment = { id: string; authorType: string; authorName: string; body: string; createdAt: string };
 type Revision = {
   id: string; label: string; status: string; summary: string | null; summaryClient: string | null;
   notes: string | null; sentAt: string | null; approvedAt: string | null; releasedAt: string | null;
-  createdAt: string; documents: Doc[];
+  createdAt: string; documents: Doc[]; comments: Comment[];
 };
 type DrawingSet = { id: string; name: string; createdAt: string; revisions: Revision[] };
 
@@ -34,6 +35,7 @@ export function DrawingSets({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [newSetName, setNewSetName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [replies, setReplies] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +95,16 @@ export function DrawingSets({ jobId }: { jobId: string }) {
     setBusy(`rm-${docId}`);
     try {
       await api(`/api/jobs/${jobId}/drawings/revisions/${revId}/files?docId=${docId}`, { method: "DELETE" });
+      await load();
+    } finally { setBusy(null); }
+  }
+  async function reply(revId: string) {
+    const text = (replies[revId] || "").trim();
+    if (!text) return;
+    setBusy(`re-${revId}`);
+    try {
+      await api(`/api/jobs/${jobId}/drawings/revisions/${revId}/comment`, { method: "POST", body: JSON.stringify({ body: text }) });
+      setReplies((r) => ({ ...r, [revId]: "" }));
       await load();
     } finally { setBusy(null); }
   }
@@ -166,6 +178,28 @@ export function DrawingSets({ jobId }: { jobId: string }) {
                           </li>
                         ))}
                       </ul>
+                    )}
+
+                    {rev.comments.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        {rev.comments.map((c) => (
+                          <div key={c.id} className={`rounded-lg px-2.5 py-1.5 text-sm ${c.authorType === "client" ? "bg-amber-50 dark:bg-amber-500/10" : "bg-stone-100 dark:bg-night-800"}`}>
+                            <span className="text-xs font-semibold text-stone-500 dark:text-slate-400">{c.authorName}{c.authorType === "client" ? " (client)" : ""}: </span>
+                            <span className="text-stone-700 dark:text-slate-200">{c.body}</span>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <input
+                            className="input flex-1 py-1.5 text-sm"
+                            value={replies[rev.id] || ""}
+                            onChange={(e) => setReplies((r) => ({ ...r, [rev.id]: e.target.value }))}
+                            placeholder="Reply to the client…"
+                          />
+                          <button className="btn-secondary py-1.5 text-sm" disabled={busy === `re-${rev.id}` || !(replies[rev.id] || "").trim()} onClick={() => reply(rev.id)}>
+                            {busy === `re-${rev.id}` ? "…" : "Reply"}
+                          </button>
+                        </div>
+                      </div>
                     )}
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">

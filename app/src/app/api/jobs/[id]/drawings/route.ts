@@ -9,6 +9,7 @@ type RevWithDocs = {
   id: string; label: string; status: string; summary: string | null; summaryClient: string | null;
   notes: string | null; sentAt: Date | null; approvedAt: Date | null; releasedAt: Date | null; createdAt: Date;
   documents: { id: string; name: string; mimeType: string; webViewLink: string | null }[];
+  comments?: { id: string; authorType: string; authorName: string; body: string; createdAt: Date }[];
 };
 
 export function serializeSet(s: { id: string; name: string; createdAt: Date; revisions: RevWithDocs[] }) {
@@ -28,6 +29,9 @@ export function serializeSet(s: { id: string; name: string; createdAt: Date; rev
       releasedAt: r.releasedAt ? r.releasedAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
       documents: r.documents.map((d) => ({ id: d.id, name: d.name, mimeType: d.mimeType, webViewLink: d.webViewLink })),
+      comments: (r.comments ?? []).map((c) => ({
+        id: c.id, authorType: c.authorType, authorName: c.authorName, body: c.body, createdAt: c.createdAt.toISOString(),
+      })),
     })),
   };
 }
@@ -43,7 +47,10 @@ export async function GET(_req: Request, { params }: Params) {
     include: {
       revisions: {
         orderBy: { createdAt: "asc" },
-        include: { documents: { select: { id: true, name: true, mimeType: true, webViewLink: true } } },
+        include: {
+          documents: { select: { id: true, name: true, mimeType: true, webViewLink: true } },
+          comments: { orderBy: { createdAt: "asc" } },
+        },
       },
     },
   });
