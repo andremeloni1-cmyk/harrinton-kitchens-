@@ -10,6 +10,9 @@ import { DrawingSets } from "@/components/DrawingSets";
 import { VariationList } from "@/components/VariationList";
 import { CutList } from "@/components/CutList";
 import { PartsProgress } from "@/components/PartsProgress";
+import { InstallBooking } from "@/components/InstallBooking";
+import { SnagList } from "@/components/SnagList";
+import { HandoverPanel } from "@/components/HandoverPanel";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
@@ -521,6 +524,15 @@ export default function JobDetailPage() {
 
       {/* Part-level production progress from factory scans */}
       <PartsProgress jobId={id} />
+
+      {/* Multi-day crewed install booking (gated on dispatch) */}
+      <InstallBooking jobId={id} />
+
+      {/* Snag list — raise on site, resolve with a proof photo */}
+      <SnagList jobId={id} />
+
+      {/* Handover ceremony — client sign-off, pack, final invoice */}
+      <HandoverPanel jobId={id} clientName={job.clientName} />
 
       {/* Component estimate from the price list */}
       <Section title="Estimate">

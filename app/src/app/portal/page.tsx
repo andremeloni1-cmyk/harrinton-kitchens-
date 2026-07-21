@@ -56,6 +56,7 @@ export default async function PortalPage() {
             orderBy: { scheduledStart: "asc" },
           },
           jobStations: { select: { status: true } },
+          snags: { select: { status: true } },
         },
       },
     },
@@ -160,6 +161,20 @@ export default async function PortalPage() {
                       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/60 dark:bg-night-800">
                         <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
                       </div>
+                    </div>
+                  );
+                })()}
+
+                {job.snags.length > 0 && (() => {
+                  const done = job.snags.filter((s) => s.status === "resolved").length;
+                  const total = job.snags.length;
+                  const allDone = done === total;
+                  return (
+                    <div className={`mt-3 rounded-xl px-3 py-2.5 ${allDone ? "bg-emerald-50 dark:bg-emerald-500/10" : "bg-stone-50 dark:bg-night-850"}`}>
+                      <p className="text-sm font-semibold text-stone-700 dark:text-slate-200">
+                        {allDone ? "✓ Finishing touches complete" : "Finishing touches"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-stone-500 dark:text-slate-400">{done} of {total} items done{allDone ? "" : " — our team is on it"}</p>
                     </div>
                   );
                 })()}

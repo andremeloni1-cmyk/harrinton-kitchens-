@@ -8,6 +8,7 @@ import { Modal } from "@/components/Modal";
 import { JobForm } from "@/components/JobForm";
 import { LeadInbox } from "@/components/LeadInbox";
 import { AtRiskJobs } from "@/components/AtRiskJobs";
+import { MaintenanceInbox } from "@/components/MaintenanceInbox";
 import { Brand } from "@/components/Brand";
 import { BrandMark } from "@/components/BrandMark";
 import { api, type JobDTO } from "@/lib/job";
@@ -422,6 +423,9 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
 
       {/* Production jobs at schedule risk (quiet when all's well) */}
       <AtRiskJobs />
+
+      {/* Client-portal maintenance requests to triage */}
+      <MaintenanceInbox />
 
       {/* Money strip — this month's numbers at a glance, tap to full insights */}
       {money && (money.invoicedThisMonth > 0 || money.paidThisMonth > 0 || money.outstanding > 0) && (

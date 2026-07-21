@@ -46,7 +46,12 @@ export async function stationGate(jobId: string, station: { name: string; positi
 export async function finishGate(jobId: string): Promise<GateResult> {
   const qc = await qcGate(jobId);
   if (qc.blocked) return qc;
+  return dispatchReadyGate(jobId);
+}
+
+/** Dispatch-only gate: are all of the job's parts scanned out to the last
+ * station? Used to gate booking an install (P10.1). */
+export async function dispatchReadyGate(jobId: string): Promise<GateResult> {
   const stations = await prisma.station.findMany({ where: { active: true }, orderBy: { position: "desc" }, take: 1, select: { position: true } });
-  const lastPos = stations[0]?.position ?? 0;
-  return dispatchGate(jobId, lastPos);
+  return dispatchGate(jobId, stations[0]?.position ?? 0);
 }

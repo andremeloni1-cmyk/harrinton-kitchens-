@@ -78,7 +78,7 @@ export function findDiscrepancies(
 // --- Variation money (P6.4) -----------------------------------------------
 // Amounts are ex-GST integer cents (a variation can be a credit — negative).
 
-type VariationLike = { status: string; title: string; amountCents: number };
+export type VariationLike = { status: string; title: string; amountCents: number };
 
 /** Total ex-GST cents of the approved variations only. */
 export function approvedVariationCents(variations: VariationLike[]): number {
