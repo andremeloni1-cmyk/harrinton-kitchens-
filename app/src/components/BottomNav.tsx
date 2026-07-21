@@ -52,6 +52,11 @@ function isPortal(pathname: string): boolean {
   return pathname.startsWith("/portal") || pathname.startsWith("/installer-portal");
 }
 
+// Public / auth pages that render without the app nav chrome.
+function chromeless(pathname: string): boolean {
+  return pathname === "/login" || pathname === "/enquire" || isPortal(pathname);
+}
+
 function isActive(pathname: string, item: NavItem): boolean {
   return item.match
     ? item.match.some((m) => pathname.startsWith(m))
@@ -64,7 +69,7 @@ function isActive(pathname: string, item: NavItem): boolean {
  * the screen edges. Hidden on desktop (lg+), where SideNav takes over. */
 export function BottomNav({ role }: { role: Role | null }) {
   const pathname = usePathname();
-  if (pathname === "/login" || isPortal(pathname)) return null;
+  if (chromeless(pathname)) return null;
 
   const navItems = itemsForRole(role);
   return (
@@ -104,7 +109,7 @@ export function BottomNav({ role }: { role: Role | null }) {
 export function SideNav({ role }: { role: Role | null }) {
   const pathname = usePathname();
   const companyName = useCompanyName();
-  if (pathname === "/login" || isPortal(pathname)) return null;
+  if (chromeless(pathname)) return null;
 
   const navItems = itemsForRole(role);
 
