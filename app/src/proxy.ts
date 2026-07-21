@@ -48,7 +48,8 @@ async function validCookie(value: string | undefined): Promise<boolean> {
   return Number.isFinite(ts) && Date.now() - ts <= MAX_AGE_MS;
 }
 
-export async function middleware(req: NextRequest) {
+// Next 16's "proxy" convention (formerly "middleware").
+export async function proxy(req: NextRequest) {
   // Per-user auth is always on: require a validly-signed, unexpired session
   // cookie (deep validation happens server-side in getSessionUser()).
   const cookie = req.cookies.get("jf_session")?.value;
