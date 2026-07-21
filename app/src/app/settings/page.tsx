@@ -9,7 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Template = { key: string; subject: string; body: string; enabled: boolean };
 type SettingsData = {
-  account: { name: string | null; email: string; googleEmail: string | null; calendarId: string; signature?: string | null; logo?: string | null; logoMime?: string | null; logoDark?: string | null; logoDarkMime?: string | null } | null;
+  account: { name: string | null; email: string; googleEmail: string | null; calendarId: string; signature?: string | null; accentColor?: string | null; logo?: string | null; logoMime?: string | null; logoDark?: string | null; logoDarkMime?: string | null } | null;
   templates: Template[];
   google: { configured: boolean; connected: boolean };
   xero?: {
@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [name, setName] = useState("");
   const [signature, setSignature] = useState("");
+  const [accentColor, setAccentColor] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [logoMime, setLogoMime] = useState<string | null>(null);
   const [logoDark, setLogoDark] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export default function SettingsPage() {
     setData(d);
     setName(d.account?.name || "");
     setSignature(d.account?.signature || "");
+    setAccentColor(d.account?.accentColor || "");
     setLogo(d.account?.logo || null);
     setLogoMime(d.account?.logoMime || null);
     setLogoDark(d.account?.logoDark || null);
@@ -137,7 +139,7 @@ export default function SettingsPage() {
     try {
       await api("/api/settings", {
         method: "PATCH",
-        body: JSON.stringify({ account: { name, signature, logo, logoMime, logoDark, logoDarkMime }, templates }),
+        body: JSON.stringify({ account: { name, signature, accentColor: accentColor || null, logo, logoMime, logoDark, logoDarkMime }, templates }),
       });
       setMsg("Saved ✓");
     } finally {
@@ -424,6 +426,27 @@ export default function SettingsPage() {
           placeholder={`Added to the bottom of every client email, e.g.\n${BRAND.name}\n0400 000 000`}
         />
         <p className="mt-1 text-xs text-stone-400 dark:text-slate-500">Appended to all automated client emails. Save settings to apply.</p>
+
+        <label className="label mt-3">Brand accent colour</label>
+        <div className="flex items-center gap-3">
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(accentColor) ? accentColor : "#b0843b"}
+            onChange={(e) => setAccentColor(e.target.value)}
+            className="h-10 w-14 shrink-0 cursor-pointer rounded-lg border border-stone-200 bg-white p-1 dark:border-night-line dark:bg-night-850"
+            aria-label="Accent colour"
+          />
+          <input
+            className="input flex-1"
+            value={accentColor}
+            onChange={(e) => setAccentColor(e.target.value)}
+            placeholder="#b0843b — default brass"
+          />
+          {accentColor && (
+            <button className="btn-secondary shrink-0" onClick={() => setAccentColor("")}>Default</button>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-stone-400 dark:text-slate-500">Restyles the whole app and client portal. Leave blank for the platform brass. Save to apply.</p>
 
         <label className="label mt-3">Logo (light backgrounds)</label>
         {logo ? (

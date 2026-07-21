@@ -6,22 +6,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Accent: an oak/brass ramp — warm, crafted, print-like. The whole UI
-        // references this single `brand` scale, so this is the one place the
-        // platform default accent is defined. Per-company overrides regenerate
-        // these same steps as CSS variables (see P2.2).
+        // Accent: an oak/brass ramp — warm, crafted, print-like. Defined as CSS
+        // variables (RGB channels) so a company can override the whole ramp at
+        // runtime from one hex (see src/lib/accent.ts + the root layout); the
+        // `<alpha-value>` form keeps opacity modifiers like `bg-brand-500/20`
+        // working. Default brass values live in globals.css `:root`.
         brand: {
-          50: "#fbf7ee",
-          100: "#f3e9d4",
-          200: "#e7d3ab",
-          300: "#d8ba7e",
-          400: "#c69f57",
-          500: "#b0843b", // ← brass
-          600: "#8c6730", // solid accent (white text passes AA)
-          700: "#6f5227", // text links
-          800: "#574020",
-          900: "#46351d",
-          950: "#271c10",
+          50: "rgb(var(--brand-50) / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
+          950: "rgb(var(--brand-950) / <alpha-value>)",
         },
         // Warm charcoal "ink" — the dominant pill buttons and dark accent tiles.
         // Anchored on #17130D (the "#16130F family" from the design brief).

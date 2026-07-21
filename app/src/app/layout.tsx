@@ -5,6 +5,14 @@ import { ScrollReset } from "@/components/ScrollReset";
 import { OfflineBar } from "@/components/OfflineBar";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
+import { prisma } from "@/lib/db";
+import { getAccentVarsCss } from "@/lib/accent";
+import { AccentInit } from "@/components/AccentInit";
+
+// Render every page per-request so the per-company accent (and other runtime
+// settings) always reflect the current CompanySettings — a static prerender
+// would freeze the accent at build time. Fine for a single-instance app.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: `${BRAND.name} — Job Scheduler`,
@@ -30,12 +38,18 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Per-company accent: override the default brass ramp at runtime from one hex.
+  const settings = await prisma.companySettings.findFirst({ select: { accentColor: true } }).catch(() => null);
+  const accentCss = settings?.accentColor ? getAccentVarsCss(settings.accentColor) : null;
+
   return (
     <html lang="en-GB" suppressHydrationWarning>
       <head>
         {/* Apply the saved theme before paint to avoid a light flash. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Per-company accent override (falls back to the default brass in globals.css). */}
+        {accentCss && <style dangerouslySetInnerHTML={{ __html: accentCss }} />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Loaded in the browser (root layout = every page), so the single-page-font rule doesn't apply. */}
@@ -58,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
         <ScrollReset />
         <OfflineBar />
+        <AccentInit />
         <BottomNav />
       </body>
     </html>

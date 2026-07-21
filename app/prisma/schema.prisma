@@ -26,6 +26,7 @@ model CompanySettings {
   calendarId         String   @default("primary")
   driveFolderId      String?  // root Drive folder where job PDFs are filed
   signature          String?  // appended to client emails
+  accentColor        String?  // brand accent hex (e.g. "#0d9488"); null = platform brass default
   logo               String?  // base64 logo embedded in client email signatures
   logoMime           String?  // mime type of the logo (e.g. image/png)
   logoDark           String?  // base64 logo variant for dark backgrounds (falls back to logo)
