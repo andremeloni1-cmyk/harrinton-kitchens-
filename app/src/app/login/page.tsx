@@ -20,7 +20,8 @@ export default function LoginPage() {
       body: JSON.stringify({ email, password }),
     });
     if (res.ok) {
-      window.location.href = "/";
+      const d = await res.json().catch(() => ({}));
+      window.location.href = d.home || "/"; // land on the role's home surface
     } else {
       const d = await res.json().catch(() => ({}));
       setError(d.error || "Incorrect email or password");

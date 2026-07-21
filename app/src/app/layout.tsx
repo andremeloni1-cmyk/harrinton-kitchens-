@@ -8,6 +8,7 @@ import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { getAccentVarsCss } from "@/lib/accent";
 import { AccentInit } from "@/components/AccentInit";
+import { getSessionUser } from "@/lib/session";
 
 // Render every page per-request so the per-company accent (and other runtime
 // settings) always reflect the current CompanySettings — a static prerender
@@ -42,6 +43,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Per-company accent: override the default brass ramp at runtime from one hex.
   const settings = await prisma.companySettings.findFirst({ select: { accentColor: true } }).catch(() => null);
   const accentCss = settings?.accentColor ? getAccentVarsCss(settings.accentColor) : null;
+  // Role drives the four-surface nav (office / factory / field); null when signed out.
+  const role = (await getSessionUser().catch(() => null))?.role ?? null;
 
   return (
     <html lang="en-GB" suppressHydrationWarning>
@@ -61,7 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         {/* Desktop-only left sidebar; bottom bar takes over below lg. */}
-        <SideNav />
+        <SideNav role={role} />
         {/* The scroll container — the document itself never scrolls (see
             .app-scroll in globals.css), which keeps the fixed dock rock-steady
             on iOS while Safari's toolbars stay expanded. */}
@@ -73,7 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ScrollReset />
         <OfflineBar />
         <AccentInit />
-        <BottomNav />
+        <BottomNav role={role} />
       </body>
     </html>
   );
