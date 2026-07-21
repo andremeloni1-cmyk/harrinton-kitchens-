@@ -91,8 +91,25 @@ model Client {
   xeroContactId String?   @unique // linked Xero contact (set on first invoice push)
   jobs          Job[]
   invoices      Invoice[]
+  portalTokens  ClientPortalToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// A single-purpose magic-link token for client-portal sign-in. The raw token
+// travels in the emailed link; only its hash is stored. Verifying it sets a
+// separate portal session cookie (see src/lib/portal-session.ts) scoped to this
+// one client's jobs.
+model ClientPortalToken {
+  id         String    @id @default(cuid())
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([clientId])
 }
 
 // A remembered person — name/email/phone captured whenever the owner enters
