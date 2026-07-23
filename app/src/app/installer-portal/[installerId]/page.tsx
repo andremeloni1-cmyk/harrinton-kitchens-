@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/session";
 import { StatusPill } from "@/components/StatusPill";
 import { fmtDay, fmtRange } from "@/lib/format";
 
@@ -23,6 +25,10 @@ function isToday(d: Date): boolean {
 }
 
 export default async function InstallerRunSheetPage({ params }: { params: Promise<{ installerId: string }> }) {
+  // The run sheet lists client names, addresses and the schedule for a given
+  // installer. Require a staff session so it never renders to the public (P0-1).
+  if (!(await getSessionUser())) redirect("/login");
+
   const { installerId } = await params;
   const installer = await prisma.installer.findUnique({
     where: { id: installerId },

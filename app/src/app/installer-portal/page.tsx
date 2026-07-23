@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/session";
 import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +9,10 @@ export const dynamic = "force-dynamic";
 // Demo landing: in production each installer gets their own private link (or
 // signs in). For the demo, pick an installer to open their run sheet.
 export default async function InstallerPortalIndexPage() {
+  // This page enumerates installers and their live job counts. Require a staff
+  // session so it never renders to the public (P0-1).
+  if (!(await getSessionUser())) redirect("/login");
+
   const installers = await prisma.installer.findMany({
     where: { active: true },
     orderBy: { name: "asc" },
