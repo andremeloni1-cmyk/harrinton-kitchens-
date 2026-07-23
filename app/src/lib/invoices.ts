@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import type { Invoice, Job } from "@prisma/client";
 import { logActivity } from "@/lib/automations";
 import { findOrCreateClientForJob } from "@/lib/clients";
@@ -103,22 +104,36 @@ export async function createInvoiceFromJob(
       ? opts.dueDate
       : new Date(issueDate.getTime() + DUE_DAYS * 24 * 60 * 60 * 1000);
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      number: await nextInvoiceNumber(),
-      jobId: job.id,
-      clientId: client?.id ?? null,
-      issueDate,
-      dueDate,
-      currency: job.currency || "AUD",
-      lineItems: JSON.stringify(lineItems),
-      subtotal,
-      tax,
-      total,
-      amountDue: total,
-      reference: job.reference,
-    },
-  });
+  // nextInvoiceNumber() reads-then-writes, so two concurrent creates (a portal
+  // auto-deposit racing an office invoice) can compute the same INV-N; the loser
+  // hits a P2002 on the unique `number`. Retry with a recomputed number — the
+  // same resilience createJobWithReference has — so an invoice is never silently
+  // dropped.
+  let invoice: Invoice | undefined;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      invoice = await prisma.invoice.create({
+        data: {
+          number: await nextInvoiceNumber(),
+          jobId: job.id,
+          clientId: client?.id ?? null,
+          issueDate,
+          dueDate,
+          currency: job.currency || "AUD",
+          lineItems: JSON.stringify(lineItems),
+          subtotal,
+          tax,
+          total,
+          amountDue: total,
+          reference: job.reference,
+        },
+      });
+      break;
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 4) continue;
+      throw e;
+    }
+  }
   await logActivity(job.id, "invoice", `Invoice ${invoice.number} created`, {
     invoiceId: invoice.id,
   });
