@@ -24,17 +24,31 @@ export async function POST(req: Request, { params }: Params) {
     include: { job: true },
   });
   if (!quote) return json({ error: "not found" }, 404);
-  if (quote.status === "accepted") return json({ error: "This quote has already been accepted." }, 400);
 
   const body = await req.json().catch(() => ({}));
   const signerName = String(body.signerName || "").trim();
   if (signerName.length < 2) return json({ error: "Please type your full name to accept." }, 400);
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null;
 
+  // Atomically claim the quote. Only a quote currently `sent` can be accepted,
+  // and this conditional update IS the lock: a second concurrent accept
+  // (double-click / two tabs) or an attempt on a superseded/older version
+  // updates 0 rows and is rejected — so we can never raise two deposit invoices
+  // for the same job.
+  const claimed = await prisma.quote.updateMany({
+    where: { id: quote.id, status: "sent" },
+    data: { status: "accepted", acceptedAt: new Date() },
+  });
+  if (claimed.count === 0) {
+    return json(
+      { error: "This quote can no longer be accepted — it may already be accepted or replaced by a newer version." },
+      409
+    );
+  }
+
   await prisma.approval.create({
     data: { jobId: quote.jobId, quoteId: quote.id, kind: "quote", decision: "accepted", signerName, ip },
   });
-  await prisma.quote.update({ where: { id: quote.id }, data: { status: "accepted", acceptedAt: new Date() } });
 
   // Advance the job to DEPOSIT and run its stage side effects.
   const fromStage = quote.job.pipelineStage as PipelineStage;

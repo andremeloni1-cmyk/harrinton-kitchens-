@@ -5,18 +5,18 @@ import type { Job } from "@prisma/client";
 // P1-7: createInvoiceFromJob must retry the unique-number collision (P2002)
 // instead of 500ing and silently dropping the invoice.
 const invoiceCreate = vi.fn();
-const invoiceFindMany = vi.fn(async () => [] as { number: string }[]);
+const invoiceFindMany = vi.fn(async (..._a: unknown[]) => [] as { number: string }[]);
 vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: {
       create: (...a: unknown[]) => invoiceCreate(...a),
       findMany: (...a: unknown[]) => invoiceFindMany(...a),
     },
-    variation: { findMany: vi.fn(async () => []) },
+    variation: { findMany: vi.fn(async (..._a: unknown[]) => []) },
   },
 }));
-vi.mock("@/lib/clients", () => ({ findOrCreateClientForJob: vi.fn(async () => ({ id: "c1" })) }));
-vi.mock("@/lib/automations", () => ({ logActivity: vi.fn(async () => {}) }));
+vi.mock("@/lib/clients", () => ({ findOrCreateClientForJob: vi.fn(async (..._a: unknown[]) => ({ id: "c1" })) }));
+vi.mock("@/lib/automations", () => ({ logActivity: vi.fn(async (..._a: unknown[]) => {}) }));
 
 import { createInvoiceFromJob } from "./invoices";
 
