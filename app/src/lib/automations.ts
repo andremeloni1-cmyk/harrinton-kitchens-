@@ -213,7 +213,7 @@ export async function runStageTransition(
   job: Job,
   fromStage: PipelineStage,
   toStage: PipelineStage,
-  opts: { logTransition?: boolean } = {}
+  opts: { logTransition?: boolean; suppressEffects?: boolean } = {}
 ): Promise<void> {
   if (opts.logTransition && fromStage !== toStage) {
     await logActivity(
@@ -222,6 +222,9 @@ export async function runStageTransition(
       `Stage: ${stageLabel(fromStage)} → ${stageLabel(toStage)}`
     );
   }
+  // A backward correction logs the move but must not re-run the target stage's
+  // entry side effects (client emails, invoice drafts, calendar writes).
+  if (opts.suppressEffects) return;
   for (const effect of effectsForTransition(fromStage, toStage)) {
     try {
       await EFFECT_RUNNERS[effect](job, toStage);

@@ -46,4 +46,16 @@ describe("API authorization gates", () => {
     const req = new Request("http://t/api/settings", { method: "PATCH", body: "{}" });
     await expectGated("manage_settings", () => PATCH(req));
   });
+
+  it("P0-4 · PATCH /api/jobs/[id] requires manage_jobs", async () => {
+    const { PATCH } = await import("./jobs/[id]/route");
+    const req = new Request("http://t/api/jobs/j1", { method: "PATCH", body: "{}" });
+    await expectGated("manage_jobs", () => PATCH(req, { params: Promise.resolve({ id: "j1" }) }));
+  });
+
+  it("P0-4 · DELETE /api/jobs/[id] requires manage_jobs", async () => {
+    const { DELETE } = await import("./jobs/[id]/route");
+    const req = new Request("http://t/api/jobs/j1", { method: "DELETE" });
+    await expectGated("manage_jobs", () => DELETE(req, { params: Promise.resolve({ id: "j1" }) }));
+  });
 });

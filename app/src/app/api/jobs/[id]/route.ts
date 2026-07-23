@@ -1,17 +1,19 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { onStatusChange, onReschedule, removeCalendar, runStageTransition } from "@/lib/automations";
 import { isOverdue } from "@/lib/invoices";
 import { rememberContact } from "@/lib/contacts";
-import { stageForLegacyStatus, legacyStatusForStage, isStage, type PipelineStage } from "@/lib/pipeline";
+import { stageForLegacyStatus, legacyStatusForStage, isStage, stageIndex, type PipelineStage } from "@/lib/pipeline";
+import { JOB_STATUSES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("view");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({
     where: { id: (await params).id },
     include: {
@@ -44,11 +46,24 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  // Editing a job — money (quoteAmount), scheduling and, crucially, the
+  // pipeline stage (which fires client emails / invoice automations) — is a
+  // manage_jobs action, like every job sub-resource. Guard it so FACTORY /
+  // INSTALLER sessions can't rewrite or advance jobs.
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const existing = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!existing) return json({ error: "not found" }, 404);
 
   const body = await req.json().catch(() => ({}));
+
+  // Reject an unknown legacy status outright. Without this an arbitrary string
+  // (e.g. "banana") passes `status !== existing.status`, maps to ENQUIRY via
+  // stageForLegacyStatus, and silently un-schedules the job.
+  if ("status" in body && !JOB_STATUSES.includes(body.status)) {
+    return json({ error: "invalid status" }, 400);
+  }
+
   const data: Record<string, unknown> = {};
 
   for (const f of ["title", "description", "address", "companyId", "installerId", "clientName", "clientEmail", "clientPhone", "priority", "notes", "currency"]) {
@@ -101,13 +116,23 @@ export async function PATCH(req: Request, { params }: Params) {
     await rememberContact({ name: job.clientName, email: job.clientEmail, phone: job.clientPhone }).catch(() => {});
   }
 
+  // A backward move along the linear spine (e.g. correcting a mis-drag from
+  // HANDOVER back to DEPOSIT) must not re-fire the target stage's entry effects
+  // — that would re-email the client and re-draft the deposit invoice. Log the
+  // change but suppress the side effects unless the caller explicitly opts in.
+  const backwardStage =
+    stageChanged &&
+    stageIndex(existing.pipelineStage as PipelineStage) >= 0 &&
+    stageIndex(body.pipelineStage as PipelineStage) >= 0 &&
+    stageIndex(body.pipelineStage as PipelineStage) < stageIndex(existing.pipelineStage as PipelineStage);
+
   // Run automations after persisting.
   if (stageChanged) {
     await runStageTransition(
       job,
       existing.pipelineStage as PipelineStage,
       body.pipelineStage as PipelineStage,
-      { logTransition: true }
+      { logTransition: true, suppressEffects: backwardStage && body.forceStageEffects !== true }
     ).catch(() => {});
   } else if (statusChanged) {
     await onStatusChange(job, existing.status).catch(() => {});
@@ -120,7 +145,8 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const existing = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!existing) return json({ error: "not found" }, 404);
 
