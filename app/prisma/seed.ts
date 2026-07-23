@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { hashPassword } from "../src/lib/password";
+import { resolveBootstrapPassword } from "../src/lib/bootstrap-password";
 
 const prisma = new PrismaClient();
 
@@ -104,6 +105,27 @@ const PRICE_ITEMS = [
 const todos = (items: string[], doneCount = 0) =>
   JSON.stringify(items.map((label, i) => ({ label, done: i < doneCount })));
 
+// The bootstrap admin password — never a static default. Uses OWNER_PASSWORD,
+// refuses a blank one in production, otherwise generates and prints a one-time
+// password for the demo/dev operator to use.
+function seedOwnerPassword(): string {
+  const resolved = resolveBootstrapPassword();
+  if (resolved.kind === "refuse") {
+    console.error(
+      "seed: OWNER_PASSWORD is unset in production — refusing to create an admin with a " +
+        "default password. Set OWNER_PASSWORD (or use the invite/reset flow)."
+    );
+    process.exit(1);
+  }
+  if (resolved.kind === "generated") {
+    console.log(
+      `\nseed: OWNER_PASSWORD unset — generated a one-time admin password:\n\n    ${resolved.password}\n\n` +
+        "Sign in with OWNER_EMAIL and this password, then change it (or set OWNER_PASSWORD).\n"
+    );
+  }
+  return resolved.password;
+}
+
 async function main() {
   const ownerEmail = (process.env.OWNER_EMAIL || "demo@example.com").toLowerCase().trim();
 
@@ -113,10 +135,12 @@ async function main() {
     create: { email: ownerEmail, name: COMPANY_NAME },
   });
 
-  // The owner becomes the first ADMIN user (per-user auth). In demo mode a known
-  // password lets you sign straight in; a real deployment sets OWNER_PASSWORD (or
-  // the admin sets their own via the invite/reset flow).
-  const ownerPassword = process.env.OWNER_PASSWORD || "benchline-demo";
+  // The owner becomes the first ADMIN user (per-user auth). Never seed a static
+  // password: OWNER_PASSWORD if set, else a generated one-time password (dev),
+  // else refuse (production). Only mint on create — a re-seed keeps the
+  // existing password so we never clobber a real login.
+  const existingOwner = await prisma.user.findUnique({ where: { email: ownerEmail } });
+  const ownerPasswordHash = existingOwner ? undefined : hashPassword(seedOwnerPassword());
   await prisma.user.upsert({
     where: { email: ownerEmail },
     update: { role: "ADMIN", active: true },
@@ -125,7 +149,7 @@ async function main() {
       name: "Owner",
       role: "ADMIN",
       active: true,
-      passwordHash: hashPassword(ownerPassword),
+      passwordHash: ownerPasswordHash,
     },
   });
 

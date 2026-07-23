@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
+import { resolveBootstrapPassword } from "../src/lib/bootstrap-password";
 
 // Deploy-time safety net for per-user auth. Migrations create an empty User
 // table, but the deploy pipeline does NOT run the demo seed — so an in-place
@@ -28,23 +29,42 @@ async function run() {
     );
     return;
   }
-  const password = process.env.OWNER_PASSWORD || "benchline-demo";
-
   const existing = await prisma.user.findUnique({ where: { email } });
+
+  // Mint a password only when one is actually needed (a brand-new admin, or an
+  // existing record with none). Never fall back to a static default: use
+  // OWNER_PASSWORD; refuse in production when it's unset; otherwise generate and
+  // print a one-time password. A re-run that finds a password never clobbers it.
+  const needsPassword = !existing || !existing.passwordHash;
+  let passwordHash: string | undefined;
+  if (needsPassword) {
+    const resolved = resolveBootstrapPassword();
+    if (resolved.kind === "refuse") {
+      console.error(
+        "ensure-admin: no active ADMIN and OWNER_PASSWORD is unset in production — " +
+          "refusing to bootstrap an admin with a default password. Set OWNER_PASSWORD " +
+          "(or use the invite/reset flow) and re-run `npm run ensure-admin`."
+      );
+      process.exit(1);
+    }
+    if (resolved.kind === "generated") {
+      console.log(
+        `ensure-admin: OWNER_PASSWORD unset — generated a one-time admin password:\n\n    ${resolved.password}\n\n` +
+          "Sign in and change it, or set OWNER_PASSWORD to choose your own."
+      );
+    }
+    passwordHash = hashPassword(resolved.password);
+  }
+
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
-      data: {
-        role: "ADMIN",
-        active: true,
-        // Only set a password if they don't already have one — never clobber.
-        ...(existing.passwordHash ? {} : { passwordHash: hashPassword(password) }),
-      },
+      data: { role: "ADMIN", active: true, ...(passwordHash ? { passwordHash } : {}) },
     });
     console.log(`ensure-admin: promoted ${email} to active ADMIN.`);
   } else {
     await prisma.user.create({
-      data: { email, name: "Owner", role: "ADMIN", active: true, passwordHash: hashPassword(password) },
+      data: { email, name: "Owner", role: "ADMIN", active: true, passwordHash },
     });
     console.log(`ensure-admin: created ADMIN ${email}.`);
   }
