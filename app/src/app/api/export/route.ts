@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
-import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { BRAND, brandSlug } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +8,11 @@ export const dynamic = "force-dynamic";
 // the app, so their business data is never locked to the one server. Secrets
 // (OAuth tokens, API keys) are deliberately excluded.
 export async function GET() {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  // This is an owner-grade backup: the entire database (all jobs incl. document
+  // bytes, all invoices, every client's PII). Restrict to ADMIN so a lower role
+  // can't exfiltrate the whole company in one request.
+  const gate = await requirePermission("manage_settings");
+  if (gate instanceof Response) return gate;
 
   const [jobs, invoices, clients, leadSources, priceItems, reports, account] = await Promise.all([
     prisma.job.findMany({
