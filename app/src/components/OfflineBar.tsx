@@ -12,6 +12,7 @@ export function OfflineBar() {
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
   const [justSynced, setJustSynced] = useState(false);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   const refresh = useCallback(async () => {
     const [p, m] = await Promise.all([pendingPhotoCount(), pendingMutationCount()]);
@@ -19,7 +20,8 @@ export function OfflineBar() {
   }, []);
 
   const sync = useCallback(async () => {
-    const { photos, mutations } = await flushQueue();
+    const { photos, mutations, needsAuth } = await flushQueue();
+    setNeedsAuth(needsAuth);
     await refresh();
     if (photos + mutations > 0) {
       setJustSynced(true);
@@ -57,6 +59,19 @@ export function OfflineBar() {
       window.removeEventListener("jf-offline-queued", onQueued);
     };
   }, [refresh, sync]);
+
+  // Session lapsed with work still queued: never silently discard it — prompt a
+  // re-sign-in so the replay can finish. Takes priority over the other states.
+  if (needsAuth && pending > 0) {
+    return (
+      <a
+        href="/login"
+        className="fixed inset-x-0 top-0 z-[60] flex items-center justify-center px-4 py-1.5 text-center text-xs font-semibold bg-rose-600 text-white underline"
+      >
+        {pending} change{pending === 1 ? "" : "s"} couldn&apos;t sync — sign in to retry
+      </a>
+    );
+  }
 
   if (online && pending === 0 && !justSynced) return null;
 
