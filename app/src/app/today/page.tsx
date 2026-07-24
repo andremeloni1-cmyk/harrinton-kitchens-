@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { fmtRange } from "@/lib/format";
 import { api, type JobDTO } from "@/lib/job";
 import { workdaySegments, WORKDAY_MINS } from "@/lib/schedule";
+import { useMounted } from "@/lib/use-mounted";
 
 type RunJob = JobDTO & { _segStart: string; _segEnd: string; _dayIndex: number; _dayCount: number };
 
@@ -29,7 +30,10 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [visits, setVisits] = useState<TodayVisit[]>([]);
-  const today = new Date();
+  // Compute "today" only after mount. Rendering new Date() during SSR uses the
+  // server's (UTC) clock, which mismatches the client's local date on hydration.
+  const mounted = useMounted();
+  const today = mounted ? new Date() : null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,7 +82,7 @@ export default function TodayPage() {
       <header className="mb-4">
         <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Today</h1>
         <p className="text-sm text-stone-500 dark:text-slate-400">
-          {today.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })} ·{" "}
+          {today ? today.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" }) : " "} ·{" "}
           {jobs.length} job{jobs.length === 1 ? "" : "s"}
         </p>
       </header>

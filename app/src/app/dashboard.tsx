@@ -25,6 +25,7 @@ import {
 import { workdaySegments, jobEnd, startOfWeek, WORKDAY_MINS, WORK_END_HOUR, WORK_END_MIN } from "@/lib/schedule";
 import { fmtDay, fmtTime, fmtMoney } from "@/lib/format";
 import { workloadBarColor } from "@/components/WorkloadCard";
+import { useMounted } from "@/lib/use-mounted";
 
 // The dashboard filters by pipeline stage group (P3.3). "Active" is live work;
 // "Closed" is lost/cancelled. Completed jobs (handover/maintenance) sit in Field.
@@ -77,6 +78,10 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
   const [jobs, setJobs] = useState<JobDTO[]>(initialJobs ?? []);
   const [loading, setLoading] = useState(initialJobs === null);
   const [loadError, setLoadError] = useState(false);
+  // Gate client-clock-dependent derivations (e.g. "on site today") until after
+  // mount, so the UTC server render and the local client render agree on
+  // hydration instead of throwing a mismatch and flashing the wrong day.
+  const mounted = useMounted();
   const [filter, setFilter] = useState<string>(() => {
     const f = searchParams.get("filter");
     return f && (FILTERS as readonly string[]).includes(f) ? f : "active";
@@ -212,6 +217,9 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
   // Confirmed jobs on site today, plus the earliest one so the run-sheet
   // shortcut can say when and where the day starts.
   const today = useMemo(() => {
+    // Before mount, return the neutral value so SSR (UTC) and the first client
+    // render agree; the real "today" is computed once mounted on the local clock.
+    if (!mounted) return { count: 0, first: null as { start: Date; job: JobDTO } | null };
     const t = new Date();
     const same = (a: Date) => a.getFullYear() === t.getFullYear() && a.getMonth() === t.getMonth() && a.getDate() === t.getDate();
     let count = 0;
@@ -224,7 +232,7 @@ function DashboardInner({ initialJobs }: { initialJobs: JobDTO[] | null }) {
       if (!first || seg.start < first.start) first = { start: seg.start, job: j };
     }
     return { count, first };
-  }, [jobs]);
+  }, [jobs, mounted]);
 
   // This week's booked capacity and the next completely free weekday — answers
   // "can I take another job?" without opening the calendar.
