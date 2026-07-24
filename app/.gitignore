@@ -9,9 +9,10 @@ next-env.d.ts
 # production
 /build
 
-# env & secrets
-.env
-.env.local
+# env & secrets — ignore every .env variant (.env.production etc.), but keep
+# the committed template.
+.env*
+!.env.example
 
 # database (SQLite) — never commit data
 *.db
