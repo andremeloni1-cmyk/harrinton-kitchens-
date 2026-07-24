@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Client, Job } from "@prisma/client";
+import { emailDomain } from "@/lib/utils";
 
 /** The identity key private (non-company) clients are grouped by: email first,
  * falling back to name. */
@@ -46,10 +47,11 @@ export async function companyClientFor(companyId: string): Promise<Client | null
 
 /** Resolve a job's leadSource sender to a LeadSource company id by domain. */
 async function companyIdFromLeadSource(leadSource: string): Promise<string | null> {
-  const domain = (leadSource.split("@")[1] || leadSource).trim().toLowerCase();
+  const domain = emailDomain(leadSource);
   if (!domain) return null;
   const sources = await prisma.leadSource.findMany();
-  return sources.find((s) => domain.includes(s.email.toLowerCase()))?.id || null;
+  // Compare on the domain part so a source stored as a full address still matches.
+  return sources.find((s) => domain.includes(emailDomain(s.email)))?.id || null;
 }
 
 /**

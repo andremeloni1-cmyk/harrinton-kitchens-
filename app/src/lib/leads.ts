@@ -3,7 +3,7 @@ import { findLeadMessages } from "@/lib/google/gmail";
 import { uploadToJobFolder } from "@/lib/google/drive";
 import { isGoogleConnected } from "@/lib/google/oauth";
 import { logActivity } from "@/lib/automations";
-import { createJobWithReference } from "@/lib/utils";
+import { createJobWithReference, emailDomain } from "@/lib/utils";
 import { extractJobsFromEmail, visionConfigured, type ExtractedJob } from "@/lib/vision";
 import { WORKDAY_MINS, jobEnd } from "@/lib/schedule";
 
@@ -95,7 +95,9 @@ export async function scanForLeads(opts: { force?: boolean; sinceDays?: number }
     let createdHere = 0;
 
     // The trusted-sender company this email's jobs belong to (the client).
-    const source = sources.find((s) => domain.includes(s.email.toLowerCase())) || null;
+    // Match on the domain part so a source configured with a full address
+    // (greg@acme.com) still matches, not just a bare domain.
+    const source = sources.find((s) => domain.includes(emailDomain(s.email))) || null;
     const companyId = source?.id || null;
 
     const imageAttachments = m.attachments.filter((a) => IMAGE_RE.test(a.mimeType));
@@ -252,23 +254,28 @@ export async function scanForLeads(opts: { force?: boolean; sinceDays?: number }
 
 /** Combines a YYYY-MM-DD date and optional HH:mm time into a Date, or null.
  * Defaults to the standard work-day start (06:30) when no time is given.
- * Safety net: if the AI returned a clearly past date (usually a wrong year),
- * roll the year forward so new jobs are never booked in the past.
+ * Safety net: if the AI returned a date that is clearly a wrong YEAR (roughly a
+ * year or more in the past), roll the year forward. A merely-recent past date is
+ * left untouched — a legitimately recent booking (a job entered a little late, a
+ * back-dated reschedule) must not be shoved a year into the future.
  *
  * NOTE: the time is parsed in the SERVER's local timezone and stored as a
  * "floating" wall-clock instant. The calendar sync reads it back the same way
  * (see wallClock() in google/calendar.ts) and tags the event with BUSINESS_TZ,
  * so 06:30 stays 06:30 for the business. This only holds while the server's
  * timezone is stable — keep both halves in sync if that ever changes. */
-function combineDateTime(date?: string, time?: string): Date | null {
+export function combineDateTime(date?: string, time?: string): Date | null {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const t = time && /^\d{1,2}:\d{2}$/.test(time) ? time.padStart(5, "0") : "06:30";
   let d = new Date(`${date}T${t}:00`);
   if (isNaN(d.getTime())) return null;
 
-  // More than a week in the past → almost certainly a wrong year. Bump it.
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
-  for (let guard = 0; d < weekAgo && guard < 5; guard++) {
+  // Only bump when the date is more than ~11 months in the past — that gap only
+  // happens when the model dropped the year. Anything more recent is taken at
+  // face value so we don't corrupt a genuinely recent date by a year.
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 11);
+  for (let guard = 0; d < cutoff && guard < 5; guard++) {
     d = new Date(d.getFullYear() + 1, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), 0);
   }
   return d;
