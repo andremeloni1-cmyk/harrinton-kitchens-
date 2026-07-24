@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { BottomNav, SideNav } from "@/components/BottomNav";
 import { ScrollReset } from "@/components/ScrollReset";
@@ -55,12 +56,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const accentCss = settings?.accentColor ? getAccentVarsCss(settings.accentColor) : null;
   // Role drives the four-surface nav (office / factory / field); null when signed out.
   const role = (await getSessionUser().catch(() => null))?.role ?? null;
+  // CSP nonce set by the proxy — stamp it on our one inline script (P3-14).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="en-GB" suppressHydrationWarning>
       <head>
         {/* Apply the saved theme before paint to avoid a light flash. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* Per-company accent override (falls back to the default brass in globals.css). */}
         {accentCss && <style dangerouslySetInnerHTML={{ __html: accentCss }} />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

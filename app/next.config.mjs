@@ -12,22 +12,11 @@ const nextConfig = {
   // googleapis / prisma / pdf-lib are server-only; keep them out of the client bundle.
   serverExternalPackages: ["googleapis", "@prisma/client", "pdf-lib", "@anthropic-ai/sdk"],
 
-  // Security headers applied to every response.
+  // Static security headers applied to every response. The Content-Security-
+  // Policy is NOT here — it carries a per-request nonce and is set in the proxy
+  // (src/proxy.ts) so scripts run under 'nonce-…' 'strict-dynamic' instead of
+  // 'unsafe-inline' (P3-14).
   async headers() {
-    // Allow the app's own inline styles/scripts + Google Fonts + Google Maps
-    // (address autocomplete). Keeps everything else same-origin.
-    const csp = [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-      "frame-ancestors 'none'",
-      "img-src 'self' data: blob: https:",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "script-src 'self' 'unsafe-inline'",
-      "connect-src 'self' https://maps.googleapis.com https://places.googleapis.com",
-      "form-action 'self'",
-    ].join("; ");
     return [
       {
         source: "/:path*",
@@ -37,7 +26,6 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=()" },
-          { key: "Content-Security-Policy", value: csp },
         ],
       },
     ];
