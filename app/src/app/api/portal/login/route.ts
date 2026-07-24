@@ -3,10 +3,12 @@ import { prisma } from "@/lib/db";
 import { newPortalToken } from "@/lib/portal-session";
 import { sendEmail } from "@/lib/google/gmail";
 import { BRAND } from "@/lib/brand";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 const TTL_MS = 60 * 60 * 1000; // 1 hour
+const RATE_WINDOW_MS = 15 * 60_000;
 
 // Request a portal magic link. Only emails that match a client on file get one;
 // the response is identical either way so we never reveal who's a client.
@@ -14,6 +16,13 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const email = String(body.email || "").toLowerCase().trim();
   if (!email) return json({ error: "Email is required" }, 400);
+
+  // Throttle magic-link spam. Keyed on the submitted email, so a 429 never
+  // reveals which emails are clients on file (P2-C1).
+  const ipGate = rateLimit(`portal:ip:${clientIp(req)}`, { limit: 15, windowMs: RATE_WINDOW_MS });
+  if (!ipGate.ok) return tooManyRequests(ipGate.retryAfterSec);
+  const emailGate = rateLimit(`portal:email:${email}`, { limit: 3, windowMs: RATE_WINDOW_MS });
+  if (!emailGate.ok) return tooManyRequests(emailGate.retryAfterSec);
 
   // SQLite has no case-insensitive `equals`, and the client list is small, so
   // match in memory.
