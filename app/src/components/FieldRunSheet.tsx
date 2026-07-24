@@ -91,11 +91,17 @@ function FieldCard({ job, onPhotoQueued }: { job: FieldJob; onPhotoQueued: () =>
     setBusy(true);
     try {
       const fileData = snagPhoto ? await fileToBase64(snagPhoto) : undefined;
-      await fetch(`/api/jobs/${job.id}/snags`, {
+      const res = await fetch(`/api/jobs/${job.id}/snags`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ note: snagNote, fileData, mimeType: snagPhoto?.type }),
       });
+      if (!res.ok) {
+        // Never claim success or clear the note/photo on a server error — the
+        // installer's on-site defect log would be silently destroyed.
+        setMsg("Couldn't raise the snag — please try again");
+        return;
+      }
       setOpenSnags((n) => n + 1);
       setSnagNote(""); setSnagPhoto(null); setSnagOpen(false);
       setMsg("Snag raised");

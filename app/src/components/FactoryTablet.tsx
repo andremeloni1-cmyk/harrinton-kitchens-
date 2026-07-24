@@ -132,49 +132,69 @@ function NowCard({ job, js, stationName, onChanged }: { job: BoardJob; js: JobSt
   const cabinets = job.cabinets;
   const qcPassed = cabinets.filter((c) => c.qcPassedAt).length;
 
+  const [error, setError] = useState<string | null>(null);
+  const [override, setOverride] = useState<{ message: string; reason: string } | null>(null);
+
   async function toggleQc(cab: CabinetDTO) {
     setBusy("qc");
+    setError(null);
     try {
       await api(`/api/factory/jobs/${job.id}/cabinets/${cab.id}/qc`, { method: "POST", body: JSON.stringify({ passed: !cab.qcPassedAt }) });
       await onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update QC — please try again.");
     } finally { setBusy(null); }
   }
 
-  async function complete(override?: boolean, reason?: string) {
+  async function complete(withOverride?: { reason: string }) {
     setBusy("done");
+    setError(null);
     try {
       const res = await fetch(`/api/factory/job-stations/${js.id}/done`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(override ? { override: true, reason } : {}),
+        body: JSON.stringify(withOverride ? { override: true, reason: withOverride.reason } : {}),
       });
-      if (res.status === 409) {
-        const b = await res.json().catch(() => ({}));
-        if (b.needsOverride) {
-          const r = window.prompt(`${b.error}\n\nComplete anyway? Enter a reason to override:`);
-          if (r && r.trim()) await complete(true, r.trim());
-          return;
-        }
+      if (res.ok) {
+        setOverride(null);
+        await onChanged();
+        return;
       }
-      await onChanged();
+      const b = await res.json().catch(() => ({}));
+      // A QC/dispatch hold-back — collect the override reason inline. window.prompt
+      // is documented as unreliable in the installed PWA, so a blocked station
+      // could never be overridden before.
+      if (res.status === 409 && b.needsOverride) {
+        setOverride({ message: b.error || "This station is on hold.", reason: "" });
+        return;
+      }
+      setError(b.error || "Couldn't complete this station — please try again.");
+    } catch {
+      setError("Couldn't reach the server — please try again.");
     } finally { setBusy(null); }
   }
   async function toggleBlock() {
     setBusy("block");
+    setError(null);
     try {
       await api(`/api/factory/job-stations/${js.id}`, { method: "PATCH", body: JSON.stringify({ blocked: !js.blocked, blockerNote: js.blocked ? null : "Raised on the floor" }) });
       await onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update — please try again.");
     } finally { setBusy(null); }
   }
   async function photo(files: FileList | null) {
     if (!files || !files.length) return;
     setBusy("photo");
+    setError(null);
     try {
       const fileData = await fileToBase64(files[0]);
       await api(`/api/factory/job-stations/${js.id}/photo`, { method: "POST", body: JSON.stringify({ fileData }) });
       await onChanged();
-    } catch { /* ignore */ }
-    finally { setBusy(null); if (fileRef.current) fileRef.current.value = ""; }
+    } catch (e) {
+      // Never silently swallow — a worker must know if the QC photo didn't save.
+      setError(e instanceof Error ? e.message : "Photo didn't save — please try again.");
+    } finally { setBusy(null); if (fileRef.current) fileRef.current.value = ""; }
   }
 
   return (
@@ -212,6 +232,35 @@ function NowCard({ job, js, stationName, onChanged }: { job: BoardJob; js: JobSt
             ))}
           </div>
           {qcPassed < cabinets.length && <p className="mt-2 text-xs text-stone-400 dark:text-slate-500">All cabinets must pass before QC completes.</p>}
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">{error}</p>
+      )}
+
+      {override && (
+        <div className="mt-3 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/25">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">{override.message}</p>
+          <input
+            className="input mt-2"
+            placeholder="Reason to complete anyway"
+            aria-label="Override reason"
+            value={override.reason}
+            onChange={(e) => setOverride((o) => (o ? { ...o, reason: e.target.value } : o))}
+          />
+          <div className="mt-2 flex gap-2">
+            <button
+              className="rounded-xl bg-amber-600 px-3 py-2.5 text-sm font-bold text-white active:scale-[0.98] disabled:opacity-50"
+              disabled={busy !== null || !override.reason.trim()}
+              onClick={() => complete({ reason: override.reason.trim() })}
+            >
+              Complete anyway
+            </button>
+            <button className="rounded-xl px-3 py-2.5 text-sm font-semibold text-stone-500 dark:text-slate-400" disabled={busy !== null} onClick={() => setOverride(null)}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
