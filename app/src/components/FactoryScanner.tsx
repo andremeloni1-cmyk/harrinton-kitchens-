@@ -47,8 +47,11 @@ export function FactoryScanner({
       const now = Date.now();
       // One physical scan = one advance: ignore the same code for a beat.
       if (raw === lastCodeRef.current.code && now - lastCodeRef.current.at < 2500) return;
-      lastCodeRef.current = { code: raw, at: now };
       if (busyRef.current) return;
+      // Only remember the code once we're actually acting on it. Recording it
+      // before the busy bail would make a *different* part scanned mid-request
+      // get swallowed by the dedup window on the next frame, with no feedback.
+      lastCodeRef.current = { code: raw, at: now };
       busyRef.current = true;
       try {
         const res = await api<ScanResult>("/api/factory/scan", {
