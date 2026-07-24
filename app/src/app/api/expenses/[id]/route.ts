@@ -30,7 +30,10 @@ export async function PATCH(req: Request, { params }: Params) {
   const body = await req.json().catch(() => ({}));
   const total = "total" in body ? round2(Number(body.total) || 0) : existing.total;
   const hasGst = "hasGst" in body ? body.hasGst !== false : existing.hasGst;
-  const explicitGst = "gst" in body ? Number(body.gst) : null;
+  // Preserve the receipt's captured GST when the edit doesn't touch it — editing
+  // an unrelated field (vendor, category…) must not silently re-derive GST as
+  // total/11 and discard the explicit figure.
+  const explicitGst = "gst" in body ? Number(body.gst) : existing.gst;
   const { gst, net } = splitGst(total, hasGst, explicitGst);
 
   const expense = await prisma.expense.update({

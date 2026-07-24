@@ -60,7 +60,7 @@ export function defaultExpenseAccountCode(): string {
 export function splitGst(total: number, hasGst: boolean, explicitGst?: number | null): { gst: number; net: number } {
   if (!hasGst) return { gst: 0, net: round2(total) };
   const gst =
-    explicitGst != null && Number.isFinite(explicitGst) && explicitGst > 0
+    explicitGst != null && Number.isFinite(explicitGst) && explicitGst >= 0
       ? round2(explicitGst)
       : round2(total / 11);
   return { gst, net: round2(total - gst) };
