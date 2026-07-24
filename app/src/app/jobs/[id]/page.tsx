@@ -109,6 +109,11 @@ export default function JobDetailPage() {
   }, [id]);
   useEffect(() => {
     load();
+    // When the offline queue finishes replaying, reload so a change saved while
+    // offline (here or on another tab) is reflected instead of staying stale (P3-7).
+    const onSynced = () => load();
+    window.addEventListener("jf-offline-synced", onSynced);
+    return () => window.removeEventListener("jf-offline-synced", onSynced);
   }, [load]);
 
   // Open the report editor directly when linked from the Reports section.
