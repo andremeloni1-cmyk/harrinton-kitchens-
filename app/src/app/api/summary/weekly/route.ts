@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { json, timingSafeEqualStr } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { sendEmail } from "@/lib/google/gmail";
 import { buildWeeklySummary, formatWeeklySummary } from "@/lib/summary";
 import { computeRisks } from "@/lib/risk-server";
@@ -9,9 +10,11 @@ import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
-// Session (manual "send me this week's summary") or the weekly cron may trigger.
+// An ADMIN (manual "send me this week's summary") or the weekly cron may trigger.
+// The summary carries money figures, so the manual path needs manage_settings.
 async function authorized(req: Request): Promise<boolean> {
-  if (await isAuthenticated()) return true;
+  const user = await getSessionUser();
+  if (user && can(user, "manage_settings")) return true;
   const secret = process.env.CRON_SECRET;
   return Boolean(secret && timingSafeEqualStr(req.headers.get("x-cron-secret"), secret));
 }

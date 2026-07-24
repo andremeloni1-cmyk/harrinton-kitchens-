@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { isGoogleConnected } from "@/lib/google/oauth";
 import { uploadPhotosToJobFolder } from "@/lib/google/drive";
 import { logActivity } from "@/lib/automations";
@@ -30,7 +30,8 @@ function sniffImage(b: Buffer): string | null {
 // "Photos (client)" Drive folder, and record them as documents. Returns the
 // shareable folder link so the UI can offer it to the client.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
 

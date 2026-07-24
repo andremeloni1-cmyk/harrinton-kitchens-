@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const existing = await prisma.installer.findUnique({ where: { id } });
   if (!existing) return json({ error: "not found" }, 404);
@@ -40,7 +41,8 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const existing = await prisma.installer.findUnique({ where: { id } });
   if (!existing) return json({ error: "not found" }, 404);

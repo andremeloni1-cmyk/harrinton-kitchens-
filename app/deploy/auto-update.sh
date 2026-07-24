@@ -48,7 +48,7 @@ log "New commit on ${TARGET:0:9} (deployed: ${LAST_DEPLOYED:0:9}) — deploying"
 
 deploy() {
   if [[ "${AUTOUPDATE_DRY_RUN:-}" == "1" ]]; then
-    log "dry-run: would back up DB, pull, install, migrate, build, reload"
+    log "dry-run: would back up DB, pull, install, build, migrate, reload"
     return "${AUTOUPDATE_DRY_RUN_RC:-0}"
   fi
 
@@ -59,13 +59,16 @@ deploy() {
     ls -1t "$BACKUP_DIR"/*.db 2>/dev/null | tail -n "+$((KEEP_BACKUPS + 1))" | xargs -r rm -f
   fi
 
+  # Build BEFORE migrating: the build no longer migrates, so the running app
+  # stays on the old schema until the build succeeds; only then do we migrate +
+  # reload. A failed build aborts the chain, never leaving old code on a new DB.
   git pull --ff-only &&
     { npm ci || npm install; } &&
+    npm run build &&
     npx prisma migrate deploy &&
     # Best-effort admin bootstrap (never fails the deploy) so per-user auth can't
     # lock out an in-place update that started with an empty User table.
     { npm run ensure-admin || true; } &&
-    npm run build &&
     pm2 reload harringtonkitchens --update-env
 }
 

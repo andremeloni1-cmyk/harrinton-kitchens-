@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { logActivity } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function POST(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
 

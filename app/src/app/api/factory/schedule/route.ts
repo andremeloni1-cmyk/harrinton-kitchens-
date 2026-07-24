@@ -1,6 +1,7 @@
 import { json } from "@/lib/utils";
 import { requirePermission } from "@/lib/session";
 import { scheduleForWeek, productionRisk } from "@/lib/capacity-server";
+import { businessYMD } from "@/lib/business-day";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
   const gate = await requirePermission("factory_board");
   if (gate instanceof Response) return gate;
   const url = new URL(req.url);
-  const week = url.searchParams.get("week") || new Date().toISOString().slice(0, 10);
+  const week = url.searchParams.get("week") || businessYMD();
 
   const [schedule, risk] = await Promise.all([scheduleForWeek(week), productionRisk()]);
   return json({ ...schedule, risk });

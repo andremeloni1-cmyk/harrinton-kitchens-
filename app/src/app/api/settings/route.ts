@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { isGoogleConnected, googleConfigured } from "@/lib/google/oauth";
 import { isXeroConnected, xeroConfigured } from "@/lib/xero/oauth";
 import { parseHex } from "@/lib/accent";
@@ -46,7 +46,12 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  // Settings (company details, email templates, Xero posting accounts) are
+  // ADMIN-only — every sibling settings route already enforces this. Gate here
+  // too so a FACTORY/INSTALLER session can't rewrite client-facing templates or
+  // the Xero account receipts post against.
+  const gate = await requirePermission("manage_settings");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
 
   // Only allow raster image logos — reject SVG/other so a stored logo can never

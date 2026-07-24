@@ -4,6 +4,7 @@ import {
   earliestFinishWithLoad, addWorkingDays, DELIVERY_BUFFER_DAYS,
   type CapStation, type CapBlock, type UtilCell,
 } from "@/lib/capacity";
+import { businessYMD } from "@/lib/business-day";
 
 // Server glue for the capacity engine (P9.2/P9.3): loads stations/blocks/holidays
 // from prisma and hands the pure engine what it needs. Kept thin — all the real
@@ -116,7 +117,7 @@ export async function autoScheduleJob(jobId: string, opts: { dueDate?: string; c
 
 // Fallback due date (~10 working days out) when a job has no install date yet.
 function defaultDueDate(): string {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessYMD();
   return workingDays(today, dayRange(today, 21)[20])[9] ?? today;
 }
 
@@ -126,7 +127,7 @@ export type LeadTime = { cabinetCount: number; startFrom: string; finish: string
  * work already booked into every station (P9.3). Deterministic — sales/AI narrate
  * the returned date, they never invent one. */
 export async function earliestInstall(cabinetCount: number): Promise<LeadTime> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessYMD();
   const [stations, blocks, holidays] = await Promise.all([
     prisma.station.findMany({ where: { active: true }, orderBy: { position: "asc" }, select: { id: true, hoursPerDay: true } }),
     prisma.scheduleBlock.findMany({ where: { day: { gte: today } }, select: { stationId: true, day: true, hours: true } }),

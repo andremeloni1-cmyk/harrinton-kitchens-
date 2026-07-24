@@ -25,7 +25,17 @@ export async function POST(_req: Request, { params }: Params) {
   const quote = await prisma.quote.findFirst({ where: { id: quoteId, jobId: id } });
   if (!quote) return json({ error: "not found" }, 404);
   if (quote.totalCents <= 0) return json({ error: "Add lines to the quote before sending it." }, 400);
+  if (quote.status === "accepted") {
+    return json({ error: "This quote has already been accepted — create a new version to re-send." }, 409);
+  }
 
+  // Sending this version supersedes any older still-`sent` versions of the same
+  // job, so a stale earlier magic link can no longer be accepted (which would
+  // raise a second deposit invoice at a different total).
+  await prisma.quote.updateMany({
+    where: { jobId: id, status: "sent", version: { lt: quote.version } },
+    data: { status: "superseded" },
+  });
   await prisma.quote.update({ where: { id: quote.id }, data: { status: "sent" } });
 
   const email = job.client?.email || job.clientEmail;

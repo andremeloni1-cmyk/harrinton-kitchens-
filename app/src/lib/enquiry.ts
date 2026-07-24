@@ -16,8 +16,10 @@ export type ProjectType = (typeof PROJECT_TYPES)[number];
 export type EnquiryInput = { name?: string; email?: string; phone?: string };
 
 // Deliberately loose — just enough to catch obvious typos, not to police valid
-// addresses (over-strict email regexes reject real addresses).
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// addresses (over-strict email regexes reject real addresses). Because it
+// forbids whitespace (\s), it also rejects CR/LF, which doubles as a guard
+// against email header injection wherever an address is later used as a header.
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateEnquiry(input: EnquiryInput): { ok: true } | { ok: false; error: string } {
   const name = (input.name || "").trim();

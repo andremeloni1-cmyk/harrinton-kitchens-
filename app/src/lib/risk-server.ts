@@ -2,13 +2,14 @@ import { prisma } from "@/lib/db";
 import { scheduleForWeek } from "@/lib/capacity-server";
 import { parseLineItems } from "@/lib/invoices";
 import { detectRisks, type RiskItem } from "@/lib/risk";
+import { businessYMD } from "@/lib/business-day";
 
 // Gathers the live inputs for the pure risk engine (P12.3).
 
 const dayAge = (d: Date, now: Date) => Math.max(0, Math.floor((now.getTime() - d.getTime()) / 86_400_000));
 
 export async function computeRisks(now = new Date()): Promise<RiskItem[]> {
-  const today = now.toISOString().slice(0, 10);
+  const today = businessYMD(now);
   const [schedule, sentQuotes, sentDrawings, openSnags, authorisedInvoices] = await Promise.all([
     scheduleForWeek(today),
     prisma.quote.findMany({ where: { status: "sent" }, select: { createdAt: true, job: { select: { title: true } } } }),

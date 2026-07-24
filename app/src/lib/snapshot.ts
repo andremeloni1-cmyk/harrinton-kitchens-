@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { productionRisk, scheduleForWeek, earliestInstall } from "@/lib/capacity-server";
 import { currentStation } from "@/lib/factory";
 import { computeInsights } from "@/lib/insights";
+import { businessYMD } from "@/lib/business-day";
 
 // The business snapshot the Ask-AI feature reasons over (P12.2). Every field is
 // deterministic; the AI answers ONLY from what's here. Role-scoped — FACTORY
@@ -23,7 +24,7 @@ const LEAD_TIME_SIZES = [6, 10, 12, 15];
 
 export async function buildSnapshot(role: string): Promise<Snapshot> {
   const includeMoney = role !== "FACTORY" && role !== "INSTALLER";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessYMD();
 
   const [grouped, blockedStations, production, risk, schedule, snagsOpen, pendingRequests, recentMsgs, leadTimes, insights] = await Promise.all([
     prisma.job.groupBy({ by: ["pipelineStage"], _count: { _all: true } }),

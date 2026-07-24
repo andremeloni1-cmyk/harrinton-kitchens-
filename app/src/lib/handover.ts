@@ -1,5 +1,6 @@
 import { computeTotals, type LineItem } from "./invoices";
 import { variationLineItems, approvedVariationCents, type VariationLike } from "./variation";
+import { parseSections, computeQuoteTotals, centsToDollars } from "./quote";
 
 // Handover math + templates (P10.4). The final invoice bills the balance of the
 // agreed contract (base + approved variations) after payments already received
@@ -23,12 +24,43 @@ export const WARRANTY_TERMS: string[] = [
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Base invoice lines derived from the contract the client actually accepted (a
+ * Quote's sections + margin), so the final invoice bills the signed amount, not
+ * the pre-sales estimate. The line dollar-amounts come straight from the quote;
+ * the caller should still use the quote's stored `subtotalCents` for the
+ * balance so the money stays cents-exact against what was accepted.
+ */
+export function contractLinesFromQuote(quote: { sections: string; marginPct: number }): LineItem[] {
+  const sections = parseSections(quote.sections);
+  const lines: LineItem[] = [];
+  for (const s of sections) {
+    for (const l of s.lines) {
+      lines.push({
+        description: s.title ? `${s.title} — ${l.description}` : l.description,
+        quantity: l.quantity,
+        unitAmount: l.unitAmount,
+      });
+    }
+  }
+  const { marginCents } = computeQuoteTotals(sections, quote.marginPct);
+  if (marginCents !== 0) {
+    lines.push({
+      description: quote.marginPct ? `Margin (${quote.marginPct}%)` : "Margin",
+      quantity: 1,
+      unitAmount: centsToDollars(marginCents),
+    });
+  }
+  return lines;
+}
+
 /** The ex-GST credit line that nets a fresh invoice down to the outstanding
- * balance, given payments (inc-GST) already received. Null when nothing paid. */
+ * balance, given the inc-GST amount already invoiced to the client (deposit /
+ * progress claims). Null when there is nothing to credit. */
 export function paymentsCreditLine(paidIncCents: number, taxRate = 0.1): LineItem | null {
   if (paidIncCents <= 0) return null;
   return {
-    description: "Less payments received (deposit / progress claims)",
+    description: "Less deposit / progress claims already invoiced",
     quantity: 1,
     unitAmount: -round2(paidIncCents / 100 / (1 + taxRate)),
   };

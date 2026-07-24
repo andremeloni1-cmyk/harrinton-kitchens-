@@ -3,6 +3,7 @@ import { isOverdue } from "@/lib/invoices";
 import { productionRisk, scheduleForWeek } from "@/lib/capacity-server";
 import { currentStation } from "@/lib/factory";
 import { fmtMoney } from "@/lib/format";
+import { businessYMD } from "@/lib/business-day";
 
 // Role-aware morning briefs (P12.1). Every number here is computed deterministically
 // from the database — an AI layer may phrase the intro, but never the figures.
@@ -57,7 +58,7 @@ async function factoryBrief(now: Date): Promise<FactoryBrief> {
   const [stations, jobs, schedule] = await Promise.all([
     prisma.station.findMany({ where: { active: true }, orderBy: { position: "asc" }, select: { id: true, name: true } }),
     prisma.job.findMany({ where: { pipelineStage: "PRODUCTION" }, select: { title: true, jobStations: { orderBy: { position: "asc" }, select: { id: true, stationId: true, position: true, status: true, blocked: true, blockerNote: true } } } }),
-    scheduleForWeek(now.toISOString().slice(0, 10)),
+    scheduleForWeek(businessYMD(now)),
   ]);
   const countByStation = new Map<string, number>();
   const blockers: { job: string; note: string | null }[] = [];
@@ -66,7 +67,7 @@ async function factoryBrief(now: Date): Promise<FactoryBrief> {
     if (cur) countByStation.set(cur.stationId, (countByStation.get(cur.stationId) ?? 0) + 1);
     for (const s of j.jobStations) if (s.blocked) blockers.push({ job: j.title, note: s.blockerNote });
   }
-  const today = now.toISOString().slice(0, 10);
+  const today = businessYMD(now);
   const overloadedToday = schedule.cells.filter((c) => c.day === today && c.overloaded).length;
   return {
     role: "FACTORY",

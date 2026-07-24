@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db";
 import { jobListQuery } from "@/lib/job-list";
 import { json, createJobWithReference, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { onStatusChange } from "@/lib/automations";
 import { rememberContact } from "@/lib/contacts";
 import { stageForLegacyStatus } from "@/lib/pipeline";
+import { EMAIL_RE } from "@/lib/enquiry";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +24,19 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
 
   if (!body.title || typeof body.title !== "string") {
     return json({ error: "title is required" }, 400);
+  }
+
+  // Reject a malformed / CR-LF-bearing client email — it would inject headers
+  // into every automated email for this job (P1-12).
+  if (typeof body.clientEmail === "string") body.clientEmail = body.clientEmail.trim();
+  if (body.clientEmail && !EMAIL_RE.test(body.clientEmail)) {
+    return json({ error: "That email address doesn't look right." }, 400);
   }
 
   const status = body.status || "lead";

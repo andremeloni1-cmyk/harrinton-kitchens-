@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { draftTodos } from "@/lib/todo-ai";
 import { visionConfigured } from "@/lib/vision";
 import type { ChecklistItem } from "@/lib/pdf";
@@ -40,7 +40,8 @@ export async function GET(_req: Request, { params }: Params) {
 
 /** Save the full todo list. */
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const body = await req.json().catch(() => ({}));
   const todos = sanitize(body);
@@ -57,7 +58,8 @@ export async function PATCH(req: Request, { params }: Params) {
 /** Generate todos from the job description with AI, merging without clobbering
  * items the user already ticked or added. */
 export async function POST(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
   if (!visionConfigured()) {

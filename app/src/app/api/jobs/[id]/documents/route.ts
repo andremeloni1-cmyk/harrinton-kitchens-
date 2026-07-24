@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { logActivity } from "@/lib/automations";
+import { documentServingHeaders } from "@/lib/document-serving";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,8 @@ const MAX_B64_LENGTH = 15 * 1024 * 1024;
 
 // Upload a plan (PDF/image) for the client to review on their portal.
 export async function POST(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
 
@@ -39,24 +41,22 @@ export async function POST(req: Request, { params }: Params) {
 
 // Stream an uploaded plan back to the (authenticated) dashboard for preview.
 export async function GET(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("view");
+  if (gate instanceof Response) return gate;
   const { searchParams } = new URL(req.url);
   const docId = searchParams.get("docId") || "";
   const doc = await prisma.document.findFirst({ where: { id: docId, jobId: (await params).id } });
   if (!doc || !doc.fileData) return json({ error: "not found" }, 404);
   return new Response(Buffer.from(doc.fileData, "base64"), {
-    headers: {
-      "content-type": doc.mimeType || "application/pdf",
-      "content-disposition": `inline; filename="${doc.name.replace(/[^\w.\- ]/g, "_")}"`,
-      "cache-control": "no-store",
-    },
+    headers: documentServingHeaders(doc.mimeType, doc.name),
   });
 }
 
 // Toggle whether a document (e.g. a progress photo) is visible on the client
 // portal (P11.1). Staff curate — nothing is auto-shared.
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
   const docId = typeof body.docId === "string" ? body.docId : "";
   const doc = await prisma.document.findFirst({ where: { id: docId, jobId: (await params).id } });
@@ -67,7 +67,8 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const { searchParams } = new URL(req.url);
   const docId = searchParams.get("docId") || "";
   const doc = await prisma.document.findFirst({ where: { id: docId, jobId: (await params).id } });

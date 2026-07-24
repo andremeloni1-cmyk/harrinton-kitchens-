@@ -88,63 +88,114 @@ export async function clearQueue(): Promise<void> {
 
 let flushing = false;
 
+export type MutationFlushDecision = "delete-ok" | "keep-auth" | "drop" | "retry";
+
+/**
+ * Whether a replayed write hit the auth gate rather than its handler: a
+ * middleware 307→/login surfaces (with redirect:"manual") as an opaque response
+ * (type "opaqueredirect", status 0); 401/403/405 mean the same. On any of these
+ * the queued item must be KEPT, not dropped.
+ */
+export function isAuthLapse(res: { status: number; type?: string }): boolean {
+  return (
+    res.type === "opaqueredirect" ||
+    res.status === 0 ||
+    res.status === 401 ||
+    res.status === 403 ||
+    res.status === 405
+  );
+}
+
+/**
+ * How to treat a replayed mutation's response:
+ *  - delete-ok : it succeeded — remove it from the queue.
+ *  - keep-auth : the session has lapsed (a middleware redirect to /login, seen
+ *                as an opaque response, or a 401/403/405) — KEEP the write and
+ *                stop the pass so on-site work is never silently lost; the UI
+ *                prompts a re-auth.
+ *  - drop      : a genuine client-validation error (400/409/422…) that will
+ *                never succeed on retry.
+ *  - retry     : transient (5xx / 429) — keep and try again later.
+ */
+export function classifyMutationResponse(res: { ok: boolean; status: number; type?: string }): MutationFlushDecision {
+  if (res.ok) return "delete-ok";
+  if (isAuthLapse(res)) return "keep-auth";
+  if (res.status === 429) return "retry"; // rate-limited — transient
+  if (res.status >= 400 && res.status < 500) return "drop"; // genuine client error
+  return "retry"; // 5xx and anything else — transient
+}
+
 /**
  * Replays every queued photo and mutation. Runs single-flight; safe to call on
- * 'online', on app load, and after a manual save. Returns how many synced.
+ * 'online', on app load, and after a manual save. Returns how many synced, and
+ * whether replay stopped because the session has lapsed (needsAuth).
  */
-export async function flushQueue(): Promise<{ photos: number; mutations: number }> {
+export async function flushQueue(): Promise<{ photos: number; mutations: number; needsAuth: boolean }> {
   if (flushing || (typeof navigator !== "undefined" && !navigator.onLine)) {
-    return { photos: 0, mutations: 0 };
+    return { photos: 0, mutations: 0, needsAuth: false };
   }
   flushing = true;
   let photos = 0;
   let mutations = 0;
+  let needsAuth = false;
   try {
     // Mutations first (cheap), oldest-first.
     for (const m of (await getAll<Mutation>(MUTATIONS)).sort((a, b) => a.queuedAt - b.queuedAt)) {
+      let res: Response;
       try {
-        const res = await fetch(m.url, {
+        res = await fetch(m.url, {
           method: m.method,
           headers: { "content-type": "application/json" },
           body: m.body,
+          // A lapsed session makes the middleware 307-redirect to /login. Do NOT
+          // follow it — a followed redirect returns 405 and used to be treated
+          // as a permanent client error, silently deleting the queued write.
+          redirect: "manual",
         });
-        if (res.ok) {
-          await tx(MUTATIONS, "readwrite", (s) => s.delete(m.id!));
-          mutations++;
-        } else if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 429) {
-          // Client error (bad/stale request) — it will never succeed on retry,
-          // so drop it rather than loop forever. 401/429 are transient (auth/
-          // rate-limit) and kept for a later retry.
-          await tx(MUTATIONS, "readwrite", (s) => s.delete(m.id!));
-        } else {
-          break; // 5xx / 401 / 429 — server-side or transient, retry later
-        }
       } catch {
         break; // still offline — stop and retry later
+      }
+      const decision = classifyMutationResponse(res);
+      if (decision === "delete-ok") {
+        await tx(MUTATIONS, "readwrite", (s) => s.delete(m.id!));
+        mutations++;
+      } else if (decision === "keep-auth") {
+        needsAuth = true; // keep the write, stop, and prompt a re-auth
+        break;
+      } else if (decision === "drop") {
+        await tx(MUTATIONS, "readwrite", (s) => s.delete(m.id!));
+      } else {
+        break; // retry — 5xx / 429
       }
     }
     // Then photos, oldest-first, one per request (matches the live uploader).
     // A photo that can't be sent right now is left queued but does NOT block
     // newer photos — otherwise one un-acceptable head item freezes the queue.
-    let networkDown = false;
     for (const p of (await getAll<PhotoJob>(PHOTOS)).sort((a, b) => a.queuedAt - b.queuedAt)) {
-      if (networkDown) break;
+      let res: Response;
       try {
         const form = new FormData();
         form.append("files", new File([p.blob], p.name, { type: p.type }));
-        const res = await fetch(`/api/jobs/${p.jobId}/photos`, { method: "POST", body: form });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.ok !== false) {
-          await tx(PHOTOS, "readwrite", (s) => s.delete(p.id!));
-          photos++;
-        }
-        // else: leave it queued and move on to the next photo.
+        res = await fetch(`/api/jobs/${p.jobId}/photos`, { method: "POST", body: form, redirect: "manual" });
       } catch {
-        networkDown = true; // connection dropped — stop this pass, retry later
+        break; // connection dropped — stop this pass, retry later
       }
+      // Session lapsed — keep the photo, flag re-auth, and stop the pass.
+      if (isAuthLapse(res)) {
+        needsAuth = true;
+        break;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok !== false) {
+        await tx(PHOTOS, "readwrite", (s) => s.delete(p.id!));
+        photos++;
+      }
+      // else: a non-auth 4xx/5xx — leave it queued and move on to the next photo
+      // so one un-acceptable item doesn't freeze the queue (P2-F2 adds a way to
+      // clear a permanently-rejected photo).
     }
   } finally {
     flushing = false;
   }
-  return { photos, mutations };
+  return { photos, mutations, needsAuth };
 }

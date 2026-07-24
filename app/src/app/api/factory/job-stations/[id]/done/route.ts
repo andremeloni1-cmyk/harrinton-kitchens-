@@ -22,8 +22,14 @@ export async function POST(req: Request, { params }: Params) {
   });
   if (!js) return json({ error: "not found" }, 404);
 
+  // The next station is the lowest position strictly after this one — NOT
+  // position+1. Retiring a station leaves position gaps (init_factory snapshots
+  // live positions), so a `position + 1` lookup would find nothing on a gap,
+  // treat this as the last station, and jump the job to DELIVERY with the
+  // remaining stations (Assembly/Finishing/QC/Dispatch) never run.
   const next = await prisma.jobStation.findFirst({
-    where: { jobId: js.jobId, position: js.position + 1 },
+    where: { jobId: js.jobId, position: { gt: js.position } },
+    orderBy: { position: "asc" },
   });
 
   // QC / dispatch hold-backs — overridable with a reason (P8.3).

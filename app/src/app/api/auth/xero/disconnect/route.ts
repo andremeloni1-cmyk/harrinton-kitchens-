@@ -1,11 +1,12 @@
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { disconnectXero } from "@/lib/xero/oauth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_settings");
+  if (gate instanceof Response) return gate;
   await disconnectXero();
   return json({ ok: true });
 }

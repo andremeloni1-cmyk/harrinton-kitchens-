@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
 import { getPortalClient } from "@/lib/portal-session";
+import { documentServingHeaders } from "@/lib/document-serving";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,6 @@ export async function GET(req: Request) {
   if (!doc || !doc.fileData) return json({ error: "not found" }, 404);
 
   return new Response(Buffer.from(doc.fileData, "base64"), {
-    headers: {
-      "content-type": doc.mimeType || "application/pdf",
-      "content-disposition": `inline; filename="${doc.name.replace(/[^\w.\- ]/g, "_")}"`,
-      "cache-control": "no-store",
-    },
+    headers: documentServingHeaders(doc.mimeType, doc.name),
   });
 }

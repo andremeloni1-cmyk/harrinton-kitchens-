@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json, createJobWithReference } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { logActivity } from "@/lib/automations";
 import { stageForLegacyStatus } from "@/lib/pipeline";
 
@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 // starts fresh: new reference, lead status, no schedule, no calendar/Drive
 // links, no invoices or reports.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const src = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!src) return json({ error: "not found" }, 404);
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { finalInvoiceLines, finalInvoiceBalanceCents, finalInvoiceTotalDollars, paymentsCreditLine } from "./handover";
+import { finalInvoiceLines, finalInvoiceBalanceCents, finalInvoiceTotalDollars, paymentsCreditLine, contractLinesFromQuote } from "./handover";
 import { computeTotals, type LineItem } from "./invoices";
+import { computeQuoteTotals, parseSections } from "./quote";
 
 const base: LineItem[] = [{ description: "Kitchen — contract", quantity: 1, unitAmount: 10000 }]; // $10,000 ex-GST
 const approvedVar = [{ status: "approved", amountCents: 400000, title: "Extra pantry" }]; // +$4,000 ex-GST
@@ -40,5 +41,24 @@ describe("handover final invoice math", () => {
   it("handles a fully-paid contract (balance zero)", () => {
     // contract inc = 15400 → paid 15400 → balance 0
     expect(finalInvoiceBalanceCents(1_000_000, approvedVar, 1_540_000)).toBe(0);
+  });
+});
+
+describe("contractLinesFromQuote (P0-8 — bill the accepted quote, not the estimate)", () => {
+  const sections = [{ title: "Cabinetry", lines: [{ description: "Base cabinets", quantity: 10, unitAmount: 200 }] }]; // $2,000 ex
+
+  it("itemises the quote lines + a margin line summing to the quote's ex-GST subtotal", () => {
+    const quote = { sections: JSON.stringify(sections), marginPct: 10 };
+    const lines = contractLinesFromQuote(quote);
+    const { subtotalCents } = computeQuoteTotals(parseSections(quote.sections), quote.marginPct);
+    const summedCents = Math.round(lines.reduce((s, l) => s + l.quantity * l.unitAmount, 0) * 100);
+    expect(summedCents).toBe(subtotalCents); // 2000 + 10% margin = 2200 → 220000c
+    expect(lines.some((l) => /Margin/.test(l.description))).toBe(true);
+  });
+
+  it("omits the margin line when margin is 0", () => {
+    const lines = contractLinesFromQuote({ sections: JSON.stringify(sections), marginPct: 0 });
+    expect(lines.some((l) => /Margin/.test(l.description))).toBe(false);
+    expect(Math.round(lines.reduce((s, l) => s + l.quantity * l.unitAmount, 0) * 100)).toBe(200000);
   });
 });

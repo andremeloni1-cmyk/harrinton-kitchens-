@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_settings");
+  if (gate instanceof Response) return gate;
   const account = await prisma.companySettings.findFirst();
   if (account) {
     await prisma.companySettings.update({

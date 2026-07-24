@@ -60,6 +60,9 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   // Gate everything except the auth pages/APIs (login + password reset), static
-  // assets, and the client/installer portals (client-facing, own auth).
-  matcher: ["/((?!login|reset|invite|enquire|api/auth/login|api/auth/reset|api/auth/invite|api/enquire|api/branding|api/leads/scan|api/portal|portal|installer-portal|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
+  // assets, and the client portal (client-facing, own token auth). The installer
+  // portal is NOT excluded — it exposes client names/addresses and the job
+  // pipeline, so until each installer has their own token link it requires a
+  // staff session like the rest of the app (P0-1).
+  matcher: ["/((?!login|reset|invite|enquire|api/auth/login|api/auth/reset|api/auth/invite|api/enquire|api/branding|api/leads/scan|api/portal|portal|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)"],
 };

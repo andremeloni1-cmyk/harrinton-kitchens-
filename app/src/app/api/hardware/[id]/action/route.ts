@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,8 @@ type Params = { params: Promise<{ id: string }> };
 //   ordered   — office placed the order: needs_order -> on_order
 //   unflag    — flagged by mistake: back to ok
 export async function POST(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("factory_board");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const item = await prisma.hardwareItem.findUnique({ where: { id } });
   if (!item) return json({ error: "not found" }, 404);
