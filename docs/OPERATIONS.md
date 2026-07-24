@@ -49,9 +49,10 @@ bash app/deploy/smoke.sh
 cd app
 git pull
 npm ci
+npm run build                  # build first — it no longer migrates, so the old
+                               # app keeps serving until the build succeeds
 npx prisma migrate deploy      # additive migrations only — never destructive
 npm run ensure-admin           # deploy-safety: guarantees an admin login exists
-npm run build
 pm2 reload all
 bash deploy/smoke.sh
 ```
