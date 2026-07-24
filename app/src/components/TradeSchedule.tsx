@@ -49,12 +49,22 @@ export function TradeSchedule({
   }
 
   async function setStatus(v: TradeVisitDTO, status: string) {
-    await api(`/api/jobs/${jobId}/trades/${v.id}`, { method: "PATCH", body: JSON.stringify({ status }) }).catch(() => {});
-    onChanged();
+    setError(null);
+    try {
+      await api(`/api/jobs/${jobId}/trades/${v.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update the visit");
+    }
   }
   async function remove(v: TradeVisitDTO) {
-    await api(`/api/jobs/${jobId}/trades/${v.id}`, { method: "DELETE" }).catch(() => {});
-    onChanged();
+    setError(null);
+    try {
+      await api(`/api/jobs/${jobId}/trades/${v.id}`, { method: "DELETE" });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't remove the visit");
+    }
   }
 
   return (

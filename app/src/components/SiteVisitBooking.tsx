@@ -72,8 +72,13 @@ export function SiteVisitBooking({ jobId, type }: { jobId: string; type: VisitTy
   }
 
   async function cancel(id: string) {
-    await api(`/api/jobs/${jobId}/visits/${id}`, { method: "DELETE" }).catch(() => {});
-    await load();
+    setError(null);
+    try {
+      await api(`/api/jobs/${jobId}/visits/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't cancel the visit");
+    }
   }
 
   return (
