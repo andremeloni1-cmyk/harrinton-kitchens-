@@ -16,6 +16,9 @@ export default function OfflinePage() {
         {BRAND.name} can&apos;t reach the network right now. Anything you change is saved on this device and
         will sync automatically once you&apos;re back online.
       </p>
+      {/* A full page load (not next/link client nav) so "Try again" actually
+          re-hits the network from this cached offline page. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a
         href="/"
         className="mt-6 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white active:scale-95"

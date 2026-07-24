@@ -18,7 +18,7 @@ export async function onRequestError(error: unknown, request: ErrRequest, contex
     routePath: context?.routePath,
     routeType: context?.routeType,
   };
-  // eslint-disable-next-line no-console -- deliberate: this IS the error sink.
+  // This IS the error sink — a console line surfaces in the pm2 logs.
   console.error("[request-error]", JSON.stringify(detail));
 
   const url = process.env.ERROR_WEBHOOK_URL;
