@@ -22,7 +22,10 @@ export async function POST(req: Request) {
     if (token) {
       const base = process.env.APP_URL || "";
       const link = `${base}/reset?token=${encodeURIComponent(token)}`;
-      const sent = await sendEmail({
+      // Send out-of-band (not awaited) so the response time doesn't depend on
+      // whether the account exists — the email round-trip would otherwise be a
+      // timing oracle for account enumeration (P3-19).
+      void sendEmail({
         to: user.email,
         subject: `Reset your ${BRAND.name} password`,
         body:
@@ -30,10 +33,11 @@ export async function POST(req: Request) {
           `We received a request to reset your password. Use the link below (valid for 1 hour):\n\n` +
           `${link}\n\n` +
           `If you didn't request this, you can ignore this email.`,
-      });
-      // Demo mode (Gmail not connected): surface the link in the server log so
-      // it's usable without an email provider.
-      if (!sent) console.log(`[demo] Password reset link for ${user.email}: ${link}`);
+      })
+        // Demo mode (Gmail not connected): surface the link in the server log so
+        // it's usable without an email provider.
+        .then((sent) => { if (!sent) console.log(`[demo] Password reset link for ${user.email}: ${link}`); })
+        .catch(() => {});
     }
   }
 

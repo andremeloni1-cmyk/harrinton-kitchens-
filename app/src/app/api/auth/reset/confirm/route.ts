@@ -1,11 +1,9 @@
 import { json } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { verifyToken } from "@/lib/token";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, passwordProblem } from "@/lib/password";
 
 export const dynamic = "force-dynamic";
-
-const MIN_PASSWORD = 8;
 
 // Set a new password from a reset link. Bumping credentialEpoch both consumes
 // the token (its epoch no longer matches) and signs out that user's other
@@ -15,9 +13,8 @@ export async function POST(req: Request) {
   const token = String(body.token || "");
   const password = String(body.password || "");
 
-  if (password.length < MIN_PASSWORD) {
-    return json({ error: `Password must be at least ${MIN_PASSWORD} characters` }, 400);
-  }
+  const problem = passwordProblem(password);
+  if (problem) return json({ error: problem }, 400);
 
   const payload = verifyToken(token);
   if (!payload || !payload.startsWith("reset:")) {

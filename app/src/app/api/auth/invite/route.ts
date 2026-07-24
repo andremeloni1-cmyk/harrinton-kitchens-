@@ -1,12 +1,10 @@
 import { json } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import { hashInviteToken } from "@/lib/invite";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, passwordProblem } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-
-const MIN_PASSWORD = 8;
 
 async function findLiveInvite(token: string) {
   if (!token) return null;
@@ -32,9 +30,8 @@ export async function POST(req: Request) {
   const name = String(body.name || "").trim();
   const password = String(body.password || "");
   if (!name) return json({ error: "Your name is required" }, 400);
-  if (password.length < MIN_PASSWORD) {
-    return json({ error: `Password must be at least ${MIN_PASSWORD} characters` }, 400);
-  }
+  const problem = passwordProblem(password);
+  if (problem) return json({ error: problem }, 400);
 
   const invite = await findLiveInvite(token);
   if (!invite) return json({ error: "This invite is invalid or has expired" }, 400);
