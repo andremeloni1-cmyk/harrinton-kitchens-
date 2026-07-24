@@ -143,13 +143,28 @@ export async function computeInsights(now = new Date()): Promise<Insights> {
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
   return {
-    summary: { invoicedThisMonth, paidThisMonth, outstanding, overdue, invoicedFY, paidFY, avgJobValue, jobsCompletedFY },
-    perCompany: [...perCompany.values()].sort((a, b) => b.invoiced - a.invoiced),
-    monthly: monthly.map(({ label, invoiced, paid }) => ({ label, invoiced, paid })),
+    // Every money figure is a float accumulation, so round2 the totals — an
+    // unrounded 12345.6700000001 must never reach the dashboard.
+    summary: {
+      invoicedThisMonth: round2(invoicedThisMonth),
+      paidThisMonth: round2(paidThisMonth),
+      outstanding: round2(outstanding),
+      overdue: round2(overdue),
+      invoicedFY: round2(invoicedFY),
+      paidFY: round2(paidFY),
+      avgJobValue: round2(avgJobValue),
+      jobsCompletedFY,
+    },
+    perCompany: [...perCompany.values()]
+      .map((c) => ({ ...c, invoiced: round2(c.invoiced), paid: round2(c.paid), outstanding: round2(c.outstanding) }))
+      .sort((a, b) => b.invoiced - a.invoiced),
+    monthly: monthly.map(({ label, invoiced, paid }) => ({ label, invoiced: round2(invoiced), paid: round2(paid) })),
     gst: {
       quarterLabel: `${qStart.toLocaleDateString("en-GB", { month: "short" })}–${new Date(qStart.getFullYear(), qStart.getMonth() + 2, 1).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}`,
       quarterFrom: qStart.toISOString(),
-      gstOnSalesQuarter, salesExGstQuarter, gstOnSalesFY,
+      gstOnSalesQuarter: round2(gstOnSalesQuarter),
+      salesExGstQuarter: round2(salesExGstQuarter),
+      gstOnSalesFY: round2(gstOnSalesFY),
       gstOnPurchasesQuarter: round2(gstOnPurchasesQuarter),
       purchasesExGstQuarter: round2(purchasesExGstQuarter),
       gstOnPurchasesFY: round2(gstOnPurchasesFY),
