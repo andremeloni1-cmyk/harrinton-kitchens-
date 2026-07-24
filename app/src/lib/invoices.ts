@@ -212,17 +212,57 @@ export async function removeInvoiceFromXero(invoice: Invoice): Promise<boolean> 
 }
 
 /**
- * Auto-draft on completion: create a draft invoice from the job's quote and
- * best-effort push it to Xero. Skips silently when the job already has a live
- * (non-voided) invoice, so re-completing a job never duplicates.
+ * The GST-inclusive contract value for a job, in cents: the latest accepted
+ * Quote if there is one, otherwise the job's component estimate / quote amount.
+ */
+export async function jobContractIncCents(job: Job): Promise<number> {
+  const acceptedQuote = await prisma.quote.findFirst({
+    where: { jobId: job.id, status: "accepted" },
+    orderBy: { acceptedAt: "desc" },
+    select: { subtotalCents: true },
+  });
+  if (acceptedQuote) return Math.round(acceptedQuote.subtotalCents * (1 + DEFAULT_TAX_RATE));
+  const estimate = parseLineItems(job.estimateItems ?? "[]");
+  const baseSubtotal =
+    estimate.length > 0
+      ? estimate.reduce((s, l) => s + l.quantity * l.unitAmount, 0)
+      : job.quoteAmount ?? 0;
+  return Math.round(baseSubtotal * (1 + DEFAULT_TAX_RATE) * 100);
+}
+
+/**
+ * Auto-draft on completion: draft the OUTSTANDING BALANCE — the contract minus
+ * whatever has already been invoiced (any non-voided invoice, so a draft or
+ * authorised deposit is netted off rather than duplicated). Completing a job
+ * therefore always bills the remainder — even a deposit-only job completed via a
+ * plain status/stage change — and re-completing is a no-op once the contract is
+ * fully invoiced. Best-effort Xero draft push.
  */
 export async function autoDraftInvoiceOnComplete(job: Job): Promise<void> {
-  const existing = await prisma.invoice.count({
+  const priorInvoices = await prisma.invoice.findMany({
     where: { jobId: job.id, status: { not: "voided" } },
+    select: { total: true },
   });
-  if (existing > 0) return;
+  const invoicedIncCents = Math.round(priorInvoices.reduce((s, i) => s + (i.total || 0), 0) * 100);
+  const contractIncCents = await jobContractIncCents(job);
+  const balanceIncCents = contractIncCents - invoicedIncCents;
+  if (balanceIncCents <= 1) return; // already fully invoiced (or nothing to bill)
 
-  const invoice = await createInvoiceFromJob(job);
+  // With no prior invoice the balance IS the whole contract, so draft the normal
+  // itemised invoice; once a deposit exists, draft just the remaining balance.
+  const invoice =
+    invoicedIncCents > 0
+      ? await createInvoiceFromJob(job, {
+          lineItems: [
+            {
+              description: `Balance — ${job.reference} ${job.title}`.trim(),
+              quantity: 1,
+              unitAmount: round2(balanceIncCents / 100 / (1 + DEFAULT_TAX_RATE)),
+            },
+          ],
+        })
+      : await createInvoiceFromJob(job);
+
   const connected = await isXeroConnected();
   if (connected) {
     try {

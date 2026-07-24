@@ -63,7 +63,9 @@ export async function POST(req: Request, { params }: Params) {
   const from = job.pipelineStage as PipelineStage;
   if (stageIndex(from) >= 0 && stageIndex(from) < stageIndex("HANDOVER")) {
     const j2 = await prisma.job.update({ where: { id: jobId }, data: { pipelineStage: "HANDOVER", status: legacyStatusForStage("HANDOVER") } });
-    await runStageTransition(j2, from, "HANDOVER", { logTransition: true }).catch(() => {});
+    // This route drafts the final balance invoice itself (below), so suppress the
+    // HANDOVER stage's own draft_invoice effect to avoid a duplicate.
+    await runStageTransition(j2, from, "HANDOVER", { logTransition: true, skipEffects: ["draft_invoice"] }).catch(() => {});
   }
 
   // 4) draft the final balance invoice.
