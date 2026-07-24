@@ -51,6 +51,12 @@ log "Node $(node -v), npm $(npm -v)"
 
 # --- 3. pm2 ------------------------------------------------------------------
 command -v pm2 >/dev/null 2>&1 || { log "Installing pm2"; npm install -g pm2; }
+# Rotate pm2 logs so app + cron output (the error sink — see instrumentation.ts
+# and setup-cron.sh) can't fill the disk (P2-C4). Idempotent.
+pm2 install pm2-logrotate >/dev/null 2>&1 || true
+pm2 set pm2-logrotate:max_size 10M >/dev/null 2>&1 || true
+pm2 set pm2-logrotate:retain 14 >/dev/null 2>&1 || true
+pm2 set pm2-logrotate:compress true >/dev/null 2>&1 || true
 
 # --- 4. app config -----------------------------------------------------------
 if [[ ! -f .env ]]; then
