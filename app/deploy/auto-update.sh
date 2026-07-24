@@ -52,10 +52,15 @@ deploy() {
     return "${AUTOUPDATE_DRY_RUN_RC:-0}"
   fi
 
-  # Safety net: snapshot the SQLite file before migrations touch it.
-  if [[ -f "$APP_DIR/prisma/harringtonkitchens.db" ]]; then
+  # Safety net: snapshot the SQLite DB before migrations touch it. Use SQLite's
+  # online .backup rather than cp, so the -wal/-shm sidecars are captured
+  # consistently (a plain cp can miss un-checkpointed writes); fall back to cp if
+  # sqlite3 isn't installed.
+  DB="$APP_DIR/prisma/harringtonkitchens.db"
+  if [[ -f "$DB" ]]; then
     mkdir -p "$BACKUP_DIR"
-    cp "$APP_DIR/prisma/harringtonkitchens.db" "$BACKUP_DIR/$(date +%Y%m%d-%H%M%S)-${TARGET:0:9}.db"
+    OUT="$BACKUP_DIR/$(date +%Y%m%d-%H%M%S)-${TARGET:0:9}.db"
+    sqlite3 "$DB" ".backup '$OUT'" || cp "$DB" "$OUT"
     ls -1t "$BACKUP_DIR"/*.db 2>/dev/null | tail -n "+$((KEEP_BACKUPS + 1))" | xargs -r rm -f
   fi
 

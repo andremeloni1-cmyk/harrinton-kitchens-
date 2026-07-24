@@ -23,6 +23,12 @@ export async function PATCH(req: Request, { params }: Params) {
   const { id, quoteId } = await params;
   const existing = await prisma.quote.findFirst({ where: { id: quoteId, jobId: id } });
   if (!existing) return json({ error: "not found" }, 404);
+  // Only a draft is editable. Once a quote is sent/accepted (or superseded) its
+  // figures are the ones the client saw or signed — editing in place would
+  // change the contract silently. Create a new version instead.
+  if (existing.status !== "draft") {
+    return json({ error: "This quote can no longer be edited — create a new version." }, 409);
+  }
 
   const body = await req.json().catch(() => ({}));
   const sections =
