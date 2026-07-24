@@ -52,4 +52,8 @@ export const INTERNAL = {
   offlineDbName: "joinery-offline",
   /** Google Calendar `extendedProperties.private` key tagging events we created. */
   calendarJobIdKey: "joineryJobId",
+  /** Namespace prefix encoded into part QR labels so the factory scanner ignores
+   * unrelated codes. Brand-neutral — the printer (labels.ts) and scanner
+   * (FactoryScanner) both read it from here, so they can never drift apart. */
+  qrPrefix: "PART:",
 } as const;

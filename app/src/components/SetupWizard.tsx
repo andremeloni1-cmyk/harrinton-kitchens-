@@ -65,7 +65,7 @@ export function SetupWizard() {
         <div className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-stone-700 dark:text-slate-200">Company name</span>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Harrington Kitchens" />
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Kitchens" />
             <span className="mt-1 block text-xs text-stone-400 dark:text-slate-500">Shown to clients on the portal, quotes and emails.</span>
           </label>
           <label className="block">
