@@ -22,6 +22,23 @@ export async function POST(req: Request, { params }: Params) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return json({ error: "not found" }, 404);
 
+  // Idempotent: a job is only handed over once. A repeat POST (double-tap, a
+  // retry) must not draft a second final invoice / pack / sign-off — return the
+  // existing final invoice instead.
+  const priorHandover = await prisma.approval.findFirst({ where: { jobId, kind: "handover" } });
+  if (priorHandover) {
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: { jobId, status: { not: "voided" } },
+      orderBy: { createdAt: "desc" },
+    });
+    return json({
+      ok: true,
+      alreadyHandedOver: true,
+      invoiceId: existingInvoice?.id ?? null,
+      invoiceNumber: existingInvoice?.number ?? null,
+    });
+  }
+
   const body = await req.json().catch(() => ({}));
   const signerName = String(body.signerName || "").trim();
   if (signerName.length < 2) return json({ error: "Type the client's name to sign off." }, 400);

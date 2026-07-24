@@ -12,6 +12,8 @@ vi.mock("@/lib/session", () => ({
 const jobFindUnique = vi.fn();
 const invoiceFindMany = vi.fn(async (..._a: unknown[]) => [] as { status: string; total: number }[]);
 const quoteFindFirst = vi.fn(async (..._a: unknown[]) => null as unknown);
+const approvalFindFirst = vi.fn(async (..._a: unknown[]) => null as unknown);
+const invoiceFindFirst = vi.fn(async (..._a: unknown[]) => null as unknown);
 vi.mock("@/lib/db", () => ({
   prisma: {
     job: { findUnique: (...a: unknown[]) => jobFindUnique(...a), update: vi.fn(async () => ({ id: "j1", reference: "JOB-1", title: "Kitchen", pipelineStage: "HANDOVER" })) },
@@ -19,9 +21,9 @@ vi.mock("@/lib/db", () => ({
     drawingSet: { findMany: vi.fn(async () => []) },
     snagItem: { findMany: vi.fn(async () => []) },
     variation: { findMany: vi.fn(async () => []) },
-    invoice: { findMany: (...a: unknown[]) => invoiceFindMany(...a) },
+    invoice: { findMany: (...a: unknown[]) => invoiceFindMany(...a), findFirst: (...a: unknown[]) => invoiceFindFirst(...a) },
     quote: { findFirst: (...a: unknown[]) => quoteFindFirst(...a) },
-    approval: { create: vi.fn(async () => ({})) },
+    approval: { create: vi.fn(async () => ({})), findFirst: (...a: unknown[]) => approvalFindFirst(...a) },
     document: { create: vi.fn(async () => ({})) },
   },
 }));
@@ -48,6 +50,8 @@ const post = () =>
 
 beforeEach(() => {
   jobFindUnique.mockReset();
+  approvalFindFirst.mockReset().mockResolvedValue(null);
+  invoiceFindFirst.mockReset().mockResolvedValue(null);
   invoiceFindMany.mockReset().mockResolvedValue([]);
   quoteFindFirst.mockReset().mockResolvedValue(null);
   createInvoiceFromJob.mockClear();
@@ -103,5 +107,16 @@ describe("POST handover — final invoice from accepted quote + credit raised in
     const res = await post();
     const body = await res.json();
     expect(body.balance).toBe(770); // only the authorised 330 credited
+  });
+
+  it("is idempotent — a repeat handover returns the existing invoice, drafts nothing (P2-B1)", async () => {
+    jobFindUnique.mockResolvedValue(jobWithStaleEstimate);
+    approvalFindFirst.mockResolvedValue({ id: "a1", kind: "handover" }); // already handed over
+    invoiceFindFirst.mockResolvedValue({ id: "inv-existing", number: "INV-9" });
+    const res = await post();
+    const body = await res.json();
+    expect(body.alreadyHandedOver).toBe(true);
+    expect(body.invoiceNumber).toBe("INV-9");
+    expect(createInvoiceFromJob).not.toHaveBeenCalled();
   });
 });
