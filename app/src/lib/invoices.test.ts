@@ -18,7 +18,8 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/clients", () => ({ findOrCreateClientForJob: vi.fn(async (..._a: unknown[]) => ({ id: "c1" })) }));
 vi.mock("@/lib/automations", () => ({ logActivity: vi.fn(async (..._a: unknown[]) => {}) }));
 
-import { createInvoiceFromJob } from "./invoices";
+import { createInvoiceFromJob, computeTotals } from "./invoices";
+import { computeQuoteTotals } from "./quote";
 
 const job = { id: "j1", reference: "JOB-1", title: "T", address: null, estimateItems: "[]", quoteAmount: 100, currency: "AUD" } as unknown as Job;
 const line = [{ description: "x", quantity: 1, unitAmount: 100 }];
@@ -59,5 +60,37 @@ describe("createInvoiceFromJob — invoice-number collision retry (P1-7)", () =>
     });
     await expect(createInvoiceFromJob(job, { lineItems: line })).rejects.toThrow("db down");
     expect(invoiceCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("computeTotals — per-line rounding (P3-3)", () => {
+  it("rounds each line to whole cents before summing", () => {
+    // Two lines that each round up by half a cent: per-line rounding gives
+    // $20.02 (2 × 1001c); the old whole-subtotal rounding gave $20.01.
+    const { subtotal, tax, total } = computeTotals([
+      { description: "a", quantity: 1, unitAmount: 10.005 },
+      { description: "b", quantity: 1, unitAmount: 10.005 },
+    ]);
+    expect(subtotal).toBe(20.02);
+    expect(tax).toBe(2); // round(2002c × 0.1) = 200c
+    expect(total).toBe(22.02);
+  });
+
+  it("totals plain whole-dollar lines exactly", () => {
+    const { subtotal, tax, total } = computeTotals([{ description: "x", quantity: 2, unitAmount: 100 }]);
+    expect(subtotal).toBe(200);
+    expect(tax).toBe(20);
+    expect(total).toBe(220);
+  });
+
+  it("agrees with the quote engine to the cent", () => {
+    const lines = [
+      { description: "a", quantity: 3, unitAmount: 19.99 },
+      { description: "b", quantity: 1, unitAmount: 10.005 },
+    ];
+    const invoice = computeTotals(lines);
+    const quote = computeQuoteTotals([{ title: "s", lines }], 0);
+    expect(Math.round(invoice.subtotal * 100)).toBe(quote.subtotalCents);
+    expect(Math.round(invoice.tax * 100)).toBe(quote.taxCents);
   });
 });
