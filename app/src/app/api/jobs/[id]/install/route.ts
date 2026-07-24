@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/session";
 import { runStageTransition, logActivity } from "@/lib/automations";
 import { legacyStatusForStage, stageIndex, type PipelineStage } from "@/lib/pipeline";
 import { intervalsOverlap, jobEnd, WORKDAY_MINS } from "@/lib/schedule";
-import { createEvent, listEvents } from "@/lib/google/calendar";
+import { createEvent, listEvents, deleteJobEvent } from "@/lib/google/calendar";
 import { sendEmail } from "@/lib/google/gmail";
 import { BRAND } from "@/lib/brand";
 import { dispatchReadyGate } from "@/lib/factory-guards";
@@ -90,7 +90,15 @@ export async function POST(req: Request, { params }: Params) {
   const crew = crewIds.length ? await prisma.installer.findMany({ where: { id: { in: crewIds } }, select: { id: true, name: true } }) : [];
   const lead = crew[0] ?? null;
 
-  // Replace any prior (non-cancelled) install booking for this job.
+  // Replace any prior (non-cancelled) install booking for this job — and remove
+  // its Google Calendar event too, otherwise a rebooking leaves the old event
+  // behind and the crew turns up on the original date.
+  const priorVisits = await prisma.siteVisit.findMany({
+    where: { jobId, type: "INSTALL", status: "scheduled" },
+    select: { googleEventId: true },
+  });
+  const priorEventIds = priorVisits.map((v) => v.googleEventId).filter((x): x is string => Boolean(x));
+  if (priorEventIds.length) await deleteJobEvent(priorEventIds).catch(() => {});
   await prisma.siteVisit.updateMany({ where: { jobId, type: "INSTALL", status: "scheduled" }, data: { status: "cancelled" } });
   const visit = await prisma.siteVisit.create({
     data: {

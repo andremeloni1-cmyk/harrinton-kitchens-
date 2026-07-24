@@ -232,8 +232,14 @@ export async function runStageTransition(
     if (skip.has(effect)) continue;
     try {
       await EFFECT_RUNNERS[effect](job, toStage);
-    } catch {
-      /* best-effort: a failing side effect never blocks the transition */
+    } catch (err) {
+      // Best-effort: a failing side effect never blocks the transition — but it
+      // must not vanish. A money/email automation failure needs to be visible.
+      console.error(`stage effect "${effect}" failed for ${job.reference} → ${toStage}`, err);
+      await logActivity(job.id, "error", `Automation "${effect}" failed entering ${stageLabel(toStage)}`, {
+        effect,
+        error: err instanceof Error ? err.message : String(err),
+      }).catch(() => {});
     }
   }
 }
