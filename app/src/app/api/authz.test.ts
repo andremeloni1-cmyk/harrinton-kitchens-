@@ -58,4 +58,24 @@ describe("API authorization gates", () => {
     const req = new Request("http://t/api/jobs/j1", { method: "DELETE" });
     await expectGated("manage_jobs", () => DELETE(req, { params: Promise.resolve({ id: "j1" }) }));
   });
+
+  const jobParam = { params: Promise.resolve({ id: "j1" }) };
+
+  it("P2-A2 · POST /api/jobs/[id]/documents requires manage_jobs", async () => {
+    const { POST } = await import("./jobs/[id]/documents/route");
+    await expectGated("manage_jobs", () => POST(new Request("http://t", { method: "POST", body: "{}" }), jobParam));
+  });
+  it("P2-A2 · PATCH /api/jobs/[id]/documents requires manage_jobs", async () => {
+    const { PATCH } = await import("./jobs/[id]/documents/route");
+    await expectGated("manage_jobs", () => PATCH(new Request("http://t", { method: "PATCH", body: "{}" }), jobParam));
+  });
+  it("P2-A2 · DELETE /api/jobs/[id]/documents requires manage_jobs", async () => {
+    const { DELETE } = await import("./jobs/[id]/documents/route");
+    await expectGated("manage_jobs", () => DELETE(new Request("http://t?docId=d1", { method: "DELETE" }), jobParam));
+  });
+
+  it("P2-A1 · POST /api/jobs requires manage_jobs", async () => {
+    const { POST } = await import("./jobs/route");
+    await expectGated("manage_jobs", () => POST(new Request("http://t", { method: "POST", body: "{}" })));
+  });
 });

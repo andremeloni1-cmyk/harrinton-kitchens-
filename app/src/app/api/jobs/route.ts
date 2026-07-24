@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { jobListQuery } from "@/lib/job-list";
 import { json, createJobWithReference, parseDate } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { onStatusChange } from "@/lib/automations";
 import { rememberContact } from "@/lib/contacts";
 import { stageForLegacyStatus } from "@/lib/pipeline";
@@ -23,7 +23,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
 
   if (!body.title || typeof body.title !== "string") {
