@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
 import { api } from "@/lib/job";
+import { INTERNAL } from "@/lib/brand";
 
-// Full-screen QR scanner for the factory floor (P8.2). Reads "HK:<partId>"
-// labels with the browser's BarcodeDetector where available, falling back to
-// jsQR frame decoding, and advances the scanned part at the picked station.
+// Full-screen QR scanner for the factory floor (P8.2). Reads
+// "<INTERNAL.qrPrefix><partId>" labels with the browser's BarcodeDetector where
+// available, falling back to jsQR frame decoding, and advances the scanned part
+// at the picked station.
 
 type ScanResult = {
   advanced: boolean;
@@ -41,17 +43,20 @@ export function FactoryScanner({
 
   const handleCode = useCallback(
     async (raw: string) => {
-      if (!raw.startsWith("HK:")) return; // ignore anything that isn't one of our labels
+      if (!raw.startsWith(INTERNAL.qrPrefix)) return; // ignore anything that isn't one of our labels
       const now = Date.now();
       // One physical scan = one advance: ignore the same code for a beat.
       if (raw === lastCodeRef.current.code && now - lastCodeRef.current.at < 2500) return;
-      lastCodeRef.current = { code: raw, at: now };
       if (busyRef.current) return;
+      // Only remember the code once we're actually acting on it. Recording it
+      // before the busy bail would make a *different* part scanned mid-request
+      // get swallowed by the dedup window on the next frame, with no feedback.
+      lastCodeRef.current = { code: raw, at: now };
       busyRef.current = true;
       try {
         const res = await api<ScanResult>("/api/factory/scan", {
           method: "POST",
-          body: JSON.stringify({ partId: raw.slice(3), stationId }),
+          body: JSON.stringify({ partId: raw.slice(INTERNAL.qrPrefix.length), stationId }),
         });
         const label = `${res.part.cabinet ? res.part.cabinet + " / " : ""}${res.part.name}`;
         const fb: Feedback = {

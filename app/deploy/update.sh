@@ -5,6 +5,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$APP_DIR"
 
+# Take the same lock the every-minute auto-updater holds, so a manual update and
+# a cron auto-update can't interleave (both build + migrate the same tree). Wait
+# for an in-progress run to finish rather than bailing.
+exec 9>"/tmp/harringtonkitchens-autoupdate.lock"
+if ! flock -n 9; then
+  echo "==> Another update is already running — waiting for it to finish…"
+  flock 9
+fi
+
 echo "==> Pulling latest"
 git pull --ff-only
 

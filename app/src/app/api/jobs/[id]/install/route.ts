@@ -90,24 +90,39 @@ export async function POST(req: Request, { params }: Params) {
   const crew = crewIds.length ? await prisma.installer.findMany({ where: { id: { in: crewIds } }, select: { id: true, name: true } }) : [];
   const lead = crew[0] ?? null;
 
-  // Replace any prior (non-cancelled) install booking for this job — and remove
-  // its Google Calendar event too, otherwise a rebooking leaves the old event
-  // behind and the crew turns up on the original date.
-  const priorVisits = await prisma.siteVisit.findMany({
-    where: { jobId, type: "INSTALL", status: "scheduled" },
-    select: { googleEventId: true },
+  // Atomic gate: re-check the crew's other installs, then cancel this job's prior
+  // booking and create the new one inside one transaction, so two bookings that
+  // both raced past the check above can't double-book a crew member (SQLite
+  // serialises the write).
+  const outcome = await prisma.$transaction(async (tx) => {
+    if (crewIds.length && !body.force) {
+      const others = await tx.siteVisit.findMany({ where: { type: "INSTALL", status: "scheduled", jobId: { not: jobId } } });
+      const raced = others.some((v) => {
+        const vEnd = v.scheduledEnd ?? new Date(v.scheduledStart.getTime() + WORKDAY_MINS * 60_000);
+        return intervalsOverlap(start, end, v.scheduledStart, vEnd) && parseIds(v.crewIds).some((id) => crewIds.includes(id));
+      });
+      if (raced) return null;
+    }
+    // Replace any prior (non-cancelled) install booking for this job.
+    const prior = await tx.siteVisit.findMany({ where: { jobId, type: "INSTALL", status: "scheduled" }, select: { googleEventId: true } });
+    await tx.siteVisit.updateMany({ where: { jobId, type: "INSTALL", status: "scheduled" }, data: { status: "cancelled" } });
+    const created = await tx.siteVisit.create({
+      data: {
+        jobId, type: "INSTALL",
+        assigneeId: lead?.id ?? null, assigneeName: lead?.name ?? null,
+        crewIds: JSON.stringify(crewIds), durationDays,
+        scheduledStart: start, scheduledEnd: end, notes: notes || null,
+      },
+    });
+    return { visit: created, priorEventIds: prior.map((v) => v.googleEventId).filter((x): x is string => Boolean(x)) };
   });
-  const priorEventIds = priorVisits.map((v) => v.googleEventId).filter((x): x is string => Boolean(x));
+  if (!outcome) {
+    return json({ clash: [{ title: "A crew member was just booked onto another install — pick another time", start: start.toISOString(), end: end.toISOString() }] });
+  }
+  const { visit, priorEventIds } = outcome;
+  // Remove the prior booking's Google Calendar event (external call — after the
+  // DB transaction) so the crew don't turn up on the old date.
   if (priorEventIds.length) await deleteJobEvent(priorEventIds).catch(() => {});
-  await prisma.siteVisit.updateMany({ where: { jobId, type: "INSTALL", status: "scheduled" }, data: { status: "cancelled" } });
-  const visit = await prisma.siteVisit.create({
-    data: {
-      jobId, type: "INSTALL",
-      assigneeId: lead?.id ?? null, assigneeName: lead?.name ?? null,
-      crewIds: JSON.stringify(crewIds), durationDays,
-      scheduledStart: start, scheduledEnd: end, notes: notes || null,
-    },
-  });
 
   // Reflect on the job so the run sheet, calendar and portal all see the install.
   await prisma.job.update({

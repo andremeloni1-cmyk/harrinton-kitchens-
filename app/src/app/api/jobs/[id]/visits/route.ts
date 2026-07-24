@@ -91,17 +91,34 @@ export async function POST(req: Request, { params }: Params) {
     ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { name: true } })
     : null;
 
-  const visit = await prisma.siteVisit.create({
-    data: {
-      jobId,
-      type,
-      assigneeId,
-      assigneeName: assignee?.name ?? null,
-      scheduledStart: start,
-      scheduledEnd: end,
-      notes: notes || null,
-    },
+  // Final atomic gate: re-check the assignee's overlapping visits inside a
+  // transaction right before creating, so two bookings that both raced past the
+  // check above can't both land on the slot (SQLite serialises the write).
+  const outcome = await prisma.$transaction(async (tx) => {
+    if (assigneeId && !force) {
+      const others = await tx.siteVisit.findMany({ where: { assigneeId, status: "scheduled" } });
+      const raced = others.some((v) => {
+        const vEnd = v.scheduledEnd ?? new Date(v.scheduledStart.getTime() + 60 * 60_000);
+        return intervalsOverlap(start, end, v.scheduledStart, vEnd);
+      });
+      if (raced) return null;
+    }
+    return tx.siteVisit.create({
+      data: {
+        jobId,
+        type,
+        assigneeId,
+        assigneeName: assignee?.name ?? null,
+        scheduledStart: start,
+        scheduledEnd: end,
+        notes: notes || null,
+      },
+    });
   });
+  if (!outcome) {
+    return json({ clash: [{ title: "That slot was just booked — pick another time", start: start.toISOString(), end: end.toISOString() }] });
+  }
+  const visit = outcome;
 
   const eventId = await createEvent({
     summary: meta.summary(job.title),

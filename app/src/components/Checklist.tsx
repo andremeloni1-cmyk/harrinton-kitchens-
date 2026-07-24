@@ -96,7 +96,7 @@ export function Checklist({
               </span>
               <button
                 onClick={() => remove(idx)}
-                className="shrink-0 rounded-full p-1 text-stone-300 opacity-0 transition hover:bg-stone-100 hover:text-stone-500 group-hover:opacity-100 dark:text-slate-600 dark:hover:bg-night-800"
+                className="shrink-0 rounded-full p-1 text-stone-300 opacity-100 transition hover:bg-stone-100 hover:text-stone-500 lg:opacity-0 lg:group-hover:opacity-100 dark:text-slate-600 dark:hover:bg-night-800"
                 aria-label="Remove item"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -29,15 +29,18 @@ export async function POST(req: Request) {
       data: { clientId: client.id, tokenHash, expiresAt: new Date(Date.now() + TTL_MS) },
     });
     const link = `${process.env.APP_URL || ""}/api/portal/verify?token=${encodeURIComponent(token)}`;
-    const sent = await sendEmail({
+    // Send out-of-band (not awaited) so response timing doesn't reveal whether
+    // the email belongs to a client on file (account enumeration, P3-19).
+    void sendEmail({
       to: client.email!,
       subject: `Your ${BRAND.name} project portal link`,
       body:
         `Hi ${client.name},\n\n` +
         `Here's your secure link to view your kitchen project (valid for 1 hour):\n\n${link}\n\n` +
         `If you didn't request this, you can ignore this email.`,
-    });
-    if (!sent) console.log(`[demo] Portal sign-in link for ${client.email}: ${link}`);
+    })
+      .then((sent) => { if (!sent) console.log(`[demo] Portal sign-in link for ${client.email}: ${link}`); })
+      .catch(() => {});
   }
 
   return json({ ok: true });

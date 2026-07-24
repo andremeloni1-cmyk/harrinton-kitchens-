@@ -1,9 +1,11 @@
 import QRCode from "qrcode";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { INTERNAL } from "@/lib/brand";
 
-// Per-job QR label sheet (P8.2). Each label carries a QR encoding "HK:<partId>"
-// (namespaced so the scanner ignores random codes) plus human-readable cabinet /
-// part / dimensions. Printed, cut up, and stuck on the physical parts.
+// Per-job QR label sheet (P8.2). Each label carries a QR encoding
+// "<INTERNAL.qrPrefix><partId>" (namespaced so the scanner ignores random codes)
+// plus human-readable cabinet / part / dimensions. Printed, cut up, and stuck on
+// the physical parts.
 
 export type LabelItem = { id: string; cabinet: string; part: string; detail?: string };
 
@@ -39,7 +41,7 @@ export async function generateLabelSheet(
 
     const item = items[i];
     try {
-      const png = await QRCode.toBuffer(`HK:${item.id}`, { errorCorrectionLevel: "M", margin: 1, width: 200 });
+      const png = await QRCode.toBuffer(`${INTERNAL.qrPrefix}${item.id}`, { errorCorrectionLevel: "M", margin: 1, width: 200 });
       const img = await pdf.embedPng(png);
       page.drawImage(img, { x: x + 10, y: y + cellH - qr - 14, width: qr, height: qr });
     } catch {

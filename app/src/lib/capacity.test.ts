@@ -168,4 +168,19 @@ describe("proposeBlocks", () => {
     const blocks = proposeBlocks([{ stationId: "cut", hours: 8, hoursPerDay: 8 }], SAT);
     expect(blocks).toEqual([{ stationId: "cut", day: FRI, hours: 8 }]);
   });
+
+  it("never schedules before the floor, piling the overflow onto it (P3-4)", () => {
+    // 24h @ 8/day due Friday, floored at Thursday → Fri(8) + Thu(8) fill two
+    // days and the remaining 8h can't go to Wednesday (before the floor), so it
+    // lands on Thursday. Nothing is booked before the floor; no hours are lost.
+    const blocks = proposeBlocks([{ stationId: "cut", hours: 24, hoursPerDay: 8 }], FRI, undefined, THU);
+    expect(blocks.every((b) => b.day >= THU)).toBe(true);
+    expect(blocks.reduce((s, b) => s + b.hours, 0)).toBe(24);
+  });
+
+  it("without a floor still fills backward past today (unchanged behaviour)", () => {
+    const blocks = proposeBlocks([{ stationId: "cut", hours: 24, hoursPerDay: 8 }], FRI);
+    expect(blocks.some((b) => b.day < THU)).toBe(true);
+    expect(blocks.reduce((s, b) => s + b.hours, 0)).toBe(24);
+  });
 });

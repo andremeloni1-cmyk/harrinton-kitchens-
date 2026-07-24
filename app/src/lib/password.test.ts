@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hashPassword, verifyPassword } from "./password";
+import { hashPassword, verifyPassword, passwordProblem, MIN_PASSWORD_LENGTH } from "./password";
 import { isRole, ROLES } from "./roles";
 
 describe("hashPassword / verifyPassword", () => {
@@ -23,11 +23,35 @@ describe("hashPassword / verifyPassword", () => {
   });
 
   it("returns false for null/empty/malformed stored values", () => {
+    // A missing stored value now runs a dummy scrypt (timing defence, P3-19) but
+    // must still resolve to false.
     expect(verifyPassword("x", null)).toBe(false);
     expect(verifyPassword("x", undefined)).toBe(false);
     expect(verifyPassword("x", "")).toBe(false);
     expect(verifyPassword("x", "not-a-scrypt-hash")).toBe(false);
     expect(verifyPassword("x", "scrypt$16384$8$1$deadbeef")).toBe(false); // too few parts
+  });
+});
+
+describe("passwordProblem — password policy (P3-20)", () => {
+  it("accepts a long, uncommon password", () => {
+    expect(passwordProblem("a-perfectly-fine-passphrase")).toBeNull();
+  });
+
+  it("rejects anything shorter than the minimum", () => {
+    expect(passwordProblem("short")).toMatch(/at least/); // 5 chars
+    // Built, not a literal, so the boundary value can't read as a credential.
+    expect(passwordProblem("x".repeat(MIN_PASSWORD_LENGTH - 1))).toMatch(/at least/);
+  });
+
+  it("rejects a common password even when long enough, case-insensitively", () => {
+    expect(passwordProblem("password123")).toMatch(/too common/);
+    expect(passwordProblem("Password123")).toMatch(/too common/);
+    expect(passwordProblem("administrator")).toMatch(/too common/);
+  });
+
+  it("enforces a minimum of at least 10 characters", () => {
+    expect(MIN_PASSWORD_LENGTH).toBeGreaterThanOrEqual(10);
   });
 });
 

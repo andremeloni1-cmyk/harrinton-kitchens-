@@ -49,6 +49,15 @@ export function parseDate(v: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/** The lower-cased domain part of an email address. A value that is already a
+ * bare domain (no `@`) is returned unchanged. Lets a LeadSource be configured
+ * as either `acme.com` or `greg@acme.com` and still match a sender's domain. */
+export function emailDomain(addr: string): string {
+  const a = addr.trim().toLowerCase();
+  const at = a.lastIndexOf("@");
+  return at >= 0 ? a.slice(at + 1) : a;
+}
+
 export function json<T>(data: T, init?: number | ResponseInit): Response {
   const responseInit = typeof init === "number" ? { status: init } : init;
   return new Response(JSON.stringify(data), {

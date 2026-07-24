@@ -38,8 +38,10 @@ export type ExtractedJob = {
 
 /**
  * Reads a job enquiry email (text + any attached images) and splits it into the
- * separate jobs it contains, each with its own details. Returns null when AI is
- * not configured or on error, [] when no jobs could be extracted.
+ * separate jobs it contains, each with its own details. Returns
+ * `{ ok: true, jobs }` when the model ran (jobs may be empty), and
+ * `{ ok: false }` on a transient API/network error — so the caller can retry a
+ * failed scan instead of collapsing a multi-job email into one junk job.
  *
  * PDFs are NOT sent to the model (too costly) — only their filenames are listed,
  * so the model can match each attachment to the right job by name.
@@ -51,8 +53,8 @@ export async function extractJobsFromEmail(input: {
   pdfNames?: string[];
   /** Per-company naming-convention hint (e.g. mii Kitchens' QU references). */
   companyHint?: string;
-}): Promise<ExtractedJob[] | null> {
-  if (!visionConfigured()) return null;
+}): Promise<{ ok: true; jobs: ExtractedJob[] } | { ok: false }> {
+  if (!visionConfigured()) return { ok: true, jobs: [] };
 
   const client = new Anthropic();
   const model = process.env.ANTHROPIC_MODEL || "claude-opus-4-8";
@@ -149,13 +151,15 @@ export async function extractJobsFromEmail(input: {
       },
     } as Anthropic.MessageCreateParamsNonStreaming);
 
-    if (res.stop_reason === "refusal") return null;
+    if (res.stop_reason === "refusal") return { ok: true, jobs: [] };
     const text = res.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return null;
+    if (!text || text.type !== "text") return { ok: true, jobs: [] };
     const parsed = JSON.parse(text.text) as { jobs?: ExtractedJob[] };
-    return Array.isArray(parsed.jobs) ? parsed.jobs.slice(0, 20) : [];
+    return { ok: true, jobs: Array.isArray(parsed.jobs) ? parsed.jobs.slice(0, 20) : [] };
   } catch {
-    return null;
+    // A transient API/network error — distinct from "ran, found no jobs" so the
+    // caller retries the scan rather than marking the email processed.
+    return { ok: false };
   }
 }
 

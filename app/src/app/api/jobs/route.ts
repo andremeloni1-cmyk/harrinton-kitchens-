@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { jobListQuery } from "@/lib/job-list";
 import { json, createJobWithReference, parseDate } from "@/lib/utils";
 import { isAuthenticated, requirePermission } from "@/lib/session";
@@ -41,8 +42,18 @@ export async function POST(req: Request) {
 
   const status = body.status || "lead";
 
+  // A user-supplied reference bypasses the auto-retry (which only recomputes the
+  // generated number), so a duplicate would otherwise exhaust the retries and
+  // surface as an opaque 500. Reject it cleanly up front, and still translate a
+  // raced P2002 below to a 409.
+  const customRef = typeof body.reference === "string" && body.reference.trim() ? body.reference.trim() : null;
+  if (customRef) {
+    const clash = await prisma.job.findFirst({ where: { reference: customRef }, select: { id: true } });
+    if (clash) return json({ error: `Reference ${customRef} is already in use.` }, 409);
+  }
+
   const job = await createJobWithReference((reference) => ({
-    reference: body.reference || reference,
+    reference: customRef || reference,
     title: body.title,
     description: body.description || null,
     status,
@@ -60,7 +71,13 @@ export async function POST(req: Request) {
     scheduledEnd: parseDate(body.scheduledEnd),
     notes: body.notes || null,
     completedAt: status === "completed" ? new Date() : null,
-  }));
+  })).catch((e) => {
+    // A custom reference that collided with a concurrent create — surface a 409,
+    // not the raw P2002 the retry loop re-throws once it gives up.
+    if (customRef && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return null;
+    throw e;
+  });
+  if (!job) return json({ error: `Reference ${customRef} is already in use.` }, 409);
 
   // Remember the site contact for future autosuggest.
   await rememberContact({ name: job.clientName, email: job.clientEmail, phone: job.clientPhone }).catch(() => {});

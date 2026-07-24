@@ -53,6 +53,11 @@ export default function InstallerJobPage() {
   }, [jobId]);
   useEffect(() => {
     load();
+    // Reload once the offline queue replays so a fix logged in a no-signal
+    // garage shows up here instead of leaving the page stale (P3-7).
+    const onSynced = () => load();
+    window.addEventListener("jf-offline-synced", onSynced);
+    return () => window.removeEventListener("jf-offline-synced", onSynced);
   }, [load]);
 
   function flash(m: string) {

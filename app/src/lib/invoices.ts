@@ -7,6 +7,7 @@ import { variationLineItems } from "@/lib/variation";
 import { isXeroConnected } from "@/lib/xero/oauth";
 import { findOrCreateContact } from "@/lib/xero/contacts";
 import { pushInvoice, fetchInvoiceStates, setInvoiceStatus } from "@/lib/xero/invoices";
+import { lineTotalCents } from "@/lib/quote";
 
 export type LineItem = {
   description: string;
@@ -26,9 +27,16 @@ export function computeTotals(
   items: LineItem[],
   taxRate: number = DEFAULT_TAX_RATE
 ): { subtotal: number; tax: number; total: number } {
-  const subtotal = round2(items.reduce((sum, i) => sum + i.quantity * i.unitAmount, 0));
-  const tax = round2(subtotal * taxRate);
-  return { subtotal, tax, total: round2(subtotal + tax) };
+  // Round each line to whole cents before summing (the same rule quote.ts's
+  // lineTotalCents uses) so an invoice built from a quote can't disagree with it
+  // by a rounding cent, and the printed lines always add up to the subtotal.
+  const subtotalCents = items.reduce((sum, i) => sum + lineTotalCents(i), 0);
+  const taxCents = Math.round(subtotalCents * taxRate);
+  return {
+    subtotal: subtotalCents / 100,
+    tax: taxCents / 100,
+    total: (subtotalCents + taxCents) / 100,
+  };
 }
 
 export function parseLineItems(raw: string): LineItem[] {
