@@ -4,7 +4,7 @@ import { uploadToJobFolder } from "@/lib/google/drive";
 import { isGoogleConnected } from "@/lib/google/oauth";
 import { logActivity } from "@/lib/automations";
 import { createJobWithReference } from "@/lib/utils";
-import { extractJobsFromEmail, visionConfigured } from "@/lib/vision";
+import { extractJobsFromEmail, visionConfigured, type ExtractedJob } from "@/lib/vision";
 import { WORKDAY_MINS, jobEnd } from "@/lib/schedule";
 
 const IMAGE_RE = /^image\//i;
@@ -101,15 +101,20 @@ export async function scanForLeads(opts: { force?: boolean; sinceDays?: number }
     const imageAttachments = m.attachments.filter((a) => IMAGE_RE.test(a.mimeType));
     const pdfAttachments = m.attachments.filter((a) => PDF_RE(a.filename, a.mimeType));
 
-    let extracted: Awaited<ReturnType<typeof extractJobsFromEmail>> = null;
+    let extracted: ExtractedJob[] | null = null; // null = AI not configured
     if (visionConfigured()) {
-      extracted = await extractJobsFromEmail({
+      const result = await extractJobsFromEmail({
         subject: m.subject,
         body: m.body || m.snippet || "",
         images: imageAttachments.map((a) => ({ filename: a.filename, data: a.data, mimeType: a.mimeType })),
         pdfNames: pdfAttachments.map((a) => a.filename),
         companyHint: source ? companyNamingHint(source.displayName || source.name) : undefined,
       });
+      // A transient AI/API failure — skip WITHOUT marking the email processed, so
+      // the next scan retries instead of collapsing a multi-job email into one
+      // junk job and permanently recording it as done (B8).
+      if (!result.ok) continue;
+      extracted = result.jobs;
     }
     // AI ran and found no bookable jobs — don't reconcile (can't tell what's on
     // the schedule), just record it.
