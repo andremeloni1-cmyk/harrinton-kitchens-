@@ -14,17 +14,24 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (res.ok) {
-      const d = await res.json().catch(() => ({}));
-      window.location.href = d.home || "/"; // land on the role's home surface
-    } else {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (res.ok) {
+        const d = await res.json().catch(() => ({}));
+        window.location.href = d.home || "/"; // land on the role's home surface
+        return; // keep the spinner while the browser navigates away
+      }
       const d = await res.json().catch(() => ({}));
       setError(d.error || "Incorrect email or password");
+      setBusy(false);
+    } catch {
+      // A thrown fetch (venue wifi dropping) must re-enable the button instead
+      // of leaving it stuck on "Signing in…".
+      setError("Couldn't reach the server — check your connection and try again.");
       setBusy(false);
     }
   }
@@ -40,6 +47,7 @@ export default function LoginPage() {
           inputMode="email"
           autoComplete="username"
           placeholder="Email"
+          aria-label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoFocus
@@ -49,6 +57,7 @@ export default function LoginPage() {
           type="password"
           autoComplete="current-password"
           placeholder="Password"
+          aria-label="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

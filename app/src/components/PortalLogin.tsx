@@ -8,17 +8,28 @@ export function PortalLogin() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    await fetch("/api/portal/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
-    }).catch(() => {});
-    setSent(true);
-    setBusy(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/portal/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      // Only claim the link is on its way when the request actually succeeded
+      // (the 200 is enumeration-safe either way); otherwise surface the failure
+      // instead of a false confirmation.
+      if (res.ok) setSent(true);
+      else setError("Something went wrong — please try again.");
+    } catch {
+      setError("Couldn't reach the server — check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -40,10 +51,12 @@ export function PortalLogin() {
             inputMode="email"
             autoComplete="email"
             placeholder="you@email.com"
+            aria-label="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoFocus
           />
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button className="btn-primary w-full" disabled={busy || !email}>
             {busy ? "Sending…" : "Email me a link"}
           </button>

@@ -17,6 +17,7 @@ export function SetupWizard() {
   const [accent, setAccent] = useState("#0d9488");
   const [seedSample, setSeedSample] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api<Status>("/api/setup/status").then((s) => {
@@ -28,13 +29,18 @@ export function SetupWizard() {
 
   async function finish() {
     setBusy(true);
+    setError(null);
     try {
       const res = await api<{ sampleJobId: string | null }>("/api/setup/apply", {
         method: "POST",
         body: JSON.stringify({ companyName: name.trim(), accentColor: accent, seedSample }),
       });
       window.location.href = res.sampleJobId ? `/jobs/${res.sampleJobId}` : "/";
-    } catch { setBusy(false); }
+    } catch (e) {
+      // Show why it failed instead of silently re-enabling the button.
+      setError(e instanceof Error ? e.message : "Couldn't finish setup — please try again.");
+      setBusy(false);
+    }
   }
 
   const steps = [
@@ -134,6 +140,7 @@ export function SetupWizard() {
       <div className="card p-5">
         <h1 className="mb-3 text-xl font-bold text-stone-900 dark:text-slate-100">{current.title}</h1>
         {current.body}
+        {error && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="mt-5 flex items-center justify-between">
           <button className="btn-ghost" disabled={step === 0 || busy} onClick={() => setStep((s) => Math.max(0, s - 1))}>Back</button>
           {last ? (
