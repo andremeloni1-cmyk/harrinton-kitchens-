@@ -24,6 +24,7 @@ export function InstallBooking({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clash, setClash] = useState<Clash[] | null>(null);
+  const [override, setOverride] = useState<{ message: string; reason: string } | null>(null);
 
   const load = useCallback(async () => {
     try { setData(await api<Data>(`/api/jobs/${jobId}/install`)); } catch { /* ignore */ }
@@ -47,8 +48,9 @@ export function InstallBooking({ jobId }: { jobId: string }) {
       if (res.status === 409) {
         const b = await res.json().catch(() => ({}));
         if (b.needsOverride) {
-          const r = window.prompt(`${b.error}\n\nBook the install anyway? Enter a reason to override:`);
-          if (r && r.trim()) await book(force, true, r.trim());
+          // Collect the override reason inline — window.prompt is unreliable in
+          // the installed PWA, so the override was previously unreachable there.
+          setOverride({ message: b.error || "This install is on hold.", reason: "" });
           return;
         }
         setError(b.error || "Couldn't book the install.");
@@ -57,7 +59,7 @@ export function InstallBooking({ jobId }: { jobId: string }) {
       const b = await res.json().catch(() => ({}));
       if (b.clash && b.clash.length) { setClash(b.clash); return; }
       if (!res.ok) { setError(b.error || "Couldn't book the install."); return; }
-      setOpen(false); setClash(null); setStart(""); setNotes("");
+      setOpen(false); setClash(null); setOverride(null); setStart(""); setNotes("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't book the install.");
@@ -122,13 +124,33 @@ export function InstallBooking({ jobId }: { jobId: string }) {
           )}
           {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
+          {override && (
+            <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+              <p className="font-semibold">{override.message}</p>
+              <input
+                className="input mt-2"
+                placeholder="Reason to book anyway"
+                aria-label="Override reason"
+                value={override.reason}
+                onChange={(e) => setOverride((o) => (o ? { ...o, reason: e.target.value } : o))}
+              />
+              <button
+                className="btn-primary mt-2 w-full"
+                disabled={busy || !override.reason.trim()}
+                onClick={() => book(false, true, override.reason.trim())}
+              >
+                {busy ? "Booking…" : "Book anyway (override)"}
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-2">
             {clash && clash.length > 0 ? (
               <button className="btn-primary flex-1" disabled={busy} onClick={() => book(true)}>{busy ? "Booking…" : "Book anyway"}</button>
             ) : (
               <button className="btn-accent flex-1" disabled={busy} onClick={() => book(false)}>{busy ? "Booking…" : "Book install"}</button>
             )}
-            <button className="btn-ghost" onClick={() => { setOpen(false); setClash(null); setError(null); }}>Cancel</button>
+            <button className="btn-ghost" onClick={() => { setOpen(false); setClash(null); setError(null); setOverride(null); }}>Cancel</button>
           </div>
         </div>
       )}

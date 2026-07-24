@@ -27,6 +27,8 @@ export function FactoryBoard() {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<{ job: BoardJob; js: JobStationDTO } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [override, setOverride] = useState<{ jobId: string; message: string; reason: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -51,23 +53,29 @@ export function FactoryBoard() {
     if (next) await moveTo(job.id, next.stationId);
     else await finishProduction(job.id);
   }
-  // Finish production, honouring the QC / dispatch hold-backs: a 409 prompts for
-  // an override reason and retries (P8.3).
-  async function finishProduction(jobId: string, override?: boolean, reason?: string) {
-    const res = await fetch(`/api/factory/jobs/${jobId}/finish`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(override ? { override: true, reason } : {}),
-    }).catch(() => null);
-    if (res && res.status === 409) {
-      const b = await res.json().catch(() => ({}));
-      if (b.needsOverride) {
-        const r = window.prompt(`${b.error}\n\nFinish anyway? Enter a reason to override:`);
-        if (r && r.trim()) await finishProduction(jobId, true, r.trim());
-        return;
+  // Finish production, honouring the QC / dispatch hold-backs: a 409 surfaces an
+  // override prompt in a Modal (window.prompt is unreliable in the installed PWA,
+  // so the override was previously unreachable there) (P8.3 / P1-5).
+  async function finishProduction(jobId: string, withOverride?: { reason: string }) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/factory/jobs/${jobId}/finish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(withOverride ? { override: true, reason: withOverride.reason } : {}),
+      });
+      if (res.status === 409) {
+        const b = await res.json().catch(() => ({}));
+        if (b.needsOverride) {
+          setOverride({ jobId, message: b.error || "This job is on hold.", reason: "" });
+          return;
+        }
       }
+      setOverride(null);
+      await load();
+    } finally {
+      setBusy(false);
     }
-    await load();
   }
 
   if (loading) return <div className="px-4 pt-6 text-stone-400 dark:text-slate-500">Loading the factory board…</div>;
@@ -168,6 +176,32 @@ export function FactoryBoard() {
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `${detail.job.title}` : ""}>
         {detail && <StationDetail job={detail.job} js={detail.js} onSaved={() => { setDetail(null); load(); }} />}
+      </Modal>
+
+      <Modal open={!!override} onClose={() => setOverride(null)} title="Finish anyway?">
+        {override && (
+          <div>
+            <p className="text-sm text-stone-600 dark:text-slate-300">{override.message}</p>
+            <input
+              className="input mt-3"
+              placeholder="Reason to override"
+              aria-label="Override reason"
+              value={override.reason}
+              onChange={(e) => setOverride((o) => (o ? { ...o, reason: e.target.value } : o))}
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-ghost" disabled={busy} onClick={() => setOverride(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                disabled={busy || !override.reason.trim()}
+                onClick={() => finishProduction(override.jobId, { reason: override.reason.trim() })}
+              >
+                Finish anyway
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
