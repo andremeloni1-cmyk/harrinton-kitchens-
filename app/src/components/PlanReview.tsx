@@ -43,8 +43,13 @@ export function PlanReview({
   }
 
   async function remove(doc: DocumentDTO) {
-    await api(`/api/jobs/${jobId}/documents?docId=${doc.id}`, { method: "DELETE" }).catch(() => {});
-    onChanged();
+    setError(null);
+    try {
+      await api(`/api/jobs/${jobId}/documents?docId=${doc.id}`, { method: "DELETE" });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't remove the plan");
+    }
   }
 
   return (

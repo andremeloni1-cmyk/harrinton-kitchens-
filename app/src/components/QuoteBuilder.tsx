@@ -204,7 +204,13 @@ export function QuoteBuilder({ jobId }: { jobId: string }) {
             value={activeId || ""}
             onChange={(e) => {
               const q = quotes.find((x) => x.id === e.target.value);
-              if (q) loadInto(q);
+              if (!q) return;
+              // Don't silently discard unsaved edits when glancing at another
+              // version. If they cancel, the controlled select reverts to activeId.
+              if (dirty && !window.confirm("You have unsaved changes to this quote. Discard them and switch versions?")) {
+                return;
+              }
+              loadInto(q);
             }}
           >
             {quotes.map((q) => (

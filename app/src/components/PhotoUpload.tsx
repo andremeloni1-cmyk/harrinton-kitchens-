@@ -121,12 +121,18 @@ export function PhotoUpload({ job, onChanged }: { job: JobDTO; onChanged: () => 
   }
 
   async function toggleShare(docId: string, next: boolean) {
-    await fetch(`/api/jobs/${job.id}/documents`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ docId, sharedWithClient: next }),
-    }).catch(() => {});
-    onChanged();
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/documents`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ docId, sharedWithClient: next }),
+      });
+      if (!res.ok) throw new Error();
+      onChanged();
+    } catch {
+      // Surface the failure instead of leaving the toggle looking changed.
+      setMsg("Couldn't update sharing — please try again");
+    }
   }
 
   return (
