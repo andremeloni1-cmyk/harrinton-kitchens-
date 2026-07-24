@@ -106,7 +106,8 @@ export async function autoScheduleJob(jobId: string, opts: { dueDate?: string; c
   const size = opts.cabinetCount ?? (cabinetCount > 0 ? cabinetCount : 8); // sensible default before a cut list exists
   const due = opts.dueDate ?? (job.scheduledStart ? job.scheduledStart.toISOString().slice(0, 10) : defaultDueDate());
   const est = estimateJobHours(size, stations);
-  const blocks = proposeBlocks(est, due, holidays);
+  // Floor the proposal at today so a tight due date never books parts in the past.
+  const blocks = proposeBlocks(est, due, holidays, businessYMD());
 
   await prisma.$transaction([
     prisma.scheduleBlock.deleteMany({ where: { jobId } }),

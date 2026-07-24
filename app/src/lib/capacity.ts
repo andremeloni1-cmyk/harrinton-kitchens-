@@ -207,8 +207,13 @@ export function earliestFinishWithLoad(
 
 /** Propose blocks so the job finishes by `dueDate`, filling each station's daily
  * capacity backwards and keeping stations in order (station N+1 never starts
- * before station N finishes). Weekends/holidays are skipped. */
-export function proposeBlocks(hoursByStation: StationHours[], dueDate: string, holidays?: ReadonlySet<string>): CapBlock[] {
+ * before station N finishes). Weekends/holidays are skipped.
+ *
+ * `floor` (a YYYY-MM-DD, typically today) stops the backward fill from booking
+ * work in the past: any hours that don't fit on or after the floor are piled
+ * onto the floor day, so the job surfaces as overloaded/at-risk instead of
+ * silently scheduling parts before today. */
+export function proposeBlocks(hoursByStation: StationHours[], dueDate: string, holidays?: ReadonlySet<string>, floor?: string): CapBlock[] {
   const blocks: CapBlock[] = [];
   let endCursor = isWorkingDay(dueDate, holidays) ? dueDate : prevWorkingDay(dueDate, holidays);
   for (let i = hoursByStation.length - 1; i >= 0; i--) {
@@ -219,6 +224,14 @@ export function proposeBlocks(hoursByStation: StationHours[], dueDate: string, h
     let day = endCursor;
     let earliest = endCursor;
     for (let g = 0; remaining > EPS && g < 2000; g++) {
+      // Can't go before the floor — dump the rest onto the floor day so no work
+      // is booked in the past and the overload shows up as a shortfall.
+      if (floor && day < floor) {
+        blocks.push({ stationId: st.stationId, day: floor, hours: round1(remaining) });
+        earliest = floor;
+        remaining = 0;
+        break;
+      }
       if (isWorkingDay(day, holidays)) {
         const use = Math.min(remaining, cap);
         blocks.push({ stationId: st.stationId, day, hours: round1(use) });
