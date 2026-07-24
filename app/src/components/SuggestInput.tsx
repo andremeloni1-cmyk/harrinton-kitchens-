@@ -17,6 +17,7 @@ export function SuggestInput({
   type = "text",
   placeholder,
   inputMode,
+  id,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -25,12 +26,15 @@ export function SuggestInput({
   type?: string;
   placeholder?: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  /** Associates a <label htmlFor> with the inner input for accessibility. */
+  id?: string;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="relative">
       <input
+        id={id}
         className="input"
         type={type}
         inputMode={inputMode}

@@ -170,13 +170,13 @@ export function JobForm({
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <label className="label">Job title</label>
-        <input className="input" value={v.title} onChange={set("title")} placeholder="e.g. QU3190 Nuzzo, or Oak staircase installation" autoFocus />
+        <label className="label" htmlFor="job-title">Job title</label>
+        <input id="job-title" className="input" value={v.title} onChange={set("title")} placeholder="e.g. QU3190 Nuzzo, or Oak staircase installation" autoFocus />
       </div>
 
       <div>
-        <label className="label">Client (company)</label>
-        <select className="input" value={v.companyId} onChange={set("companyId")}>
+        <label className="label" htmlFor="job-company">Client (company)</label>
+        <select id="job-company" className="input" value={v.companyId} onChange={set("companyId")}>
           <option value="">Direct / private client</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
@@ -187,8 +187,8 @@ export function JobForm({
       </div>
 
       <div>
-        <label className="label">Installer</label>
-        <select className="input" value={v.installerId} onChange={set("installerId")}>
+        <label className="label" htmlFor="job-installer">Installer</label>
+        <select id="job-installer" className="input" value={v.installerId} onChange={set("installerId")}>
           <option value="">Unassigned</option>
           {installers.map((i) => (
             <option key={i.id} value={i.id}>
@@ -200,8 +200,8 @@ export function JobForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Status</label>
-          <select className="input" value={v.status} onChange={set("status")}>
+          <label className="label" htmlFor="job-status">Status</label>
+          <select id="job-status" className="input" value={v.status} onChange={set("status")}>
             {JOB_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {STATUS_LABELS[s]}
@@ -210,8 +210,8 @@ export function JobForm({
           </select>
         </div>
         <div>
-          <label className="label">Priority</label>
-          <select className="input" value={v.priority} onChange={set("priority")}>
+          <label className="label" htmlFor="job-priority">Priority</label>
+          <select id="job-priority" className="input" value={v.priority} onChange={set("priority")}>
             <option value="low">Low</option>
             <option value="normal">Normal</option>
             <option value="high">High</option>
@@ -221,20 +221,21 @@ export function JobForm({
 
       <div>
         <div className="flex items-center justify-between">
-          <label className="label">Description</label>
+          <label className="label" htmlFor="job-description">Description</label>
           <DictateButton onText={(t) => setV((p) => ({ ...p, description: p.description ? `${p.description} ${t}` : t }))} />
         </div>
-        <textarea className="input" rows={2} value={v.description} onChange={set("description")} placeholder="What's the work?" />
+        <textarea id="job-description" className="input" rows={2} value={v.description} onChange={set("description")} placeholder="What's the work?" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Site contact name</label>
-          <input className="input" value={v.clientName} onChange={set("clientName")} placeholder="homeowner / site contact" />
+          <label className="label" htmlFor="job-client-name">Site contact name</label>
+          <input id="job-client-name" className="input" value={v.clientName} onChange={set("clientName")} placeholder="homeowner / site contact" />
         </div>
         <div>
-          <label className="label">Site contact phone</label>
+          <label className="label" htmlFor="job-client-phone">Site contact phone</label>
           <SuggestInput
+            id="job-client-phone"
             type="tel"
             inputMode="tel"
             value={v.clientPhone}
@@ -254,8 +255,9 @@ export function JobForm({
       </div>
 
       <div>
-        <label className="label">Contact email</label>
+        <label className="label" htmlFor="job-client-email">Contact email</label>
         <SuggestInput
+          id="job-client-email"
           type="email"
           value={v.clientEmail}
           placeholder="for automated updates"
@@ -275,8 +277,9 @@ export function JobForm({
       </div>
 
       <div>
-        <label className="label">Site address</label>
+        <label className="label" htmlFor="job-address">Site address</label>
         <SuggestInput
+          id="job-address"
           value={v.address}
           onChange={onAddressChange}
           suggestions={addressSuggestions.map((a) => ({ key: a, label: a }))}
@@ -289,18 +292,18 @@ export function JobForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Value (A$)</label>
-          <input className="input" type="number" inputMode="decimal" value={v.quoteAmount} onChange={set("quoteAmount")} />
+          <label className="label" htmlFor="job-value">Value (A$)</label>
+          <input id="job-value" className="input" type="number" inputMode="decimal" value={v.quoteAmount} onChange={set("quoteAmount")} />
         </div>
         <div>
-          <label className="label">Duration (mins)</label>
-          <input className="input" type="number" inputMode="numeric" value={v.durationMins} onChange={set("durationMins")} />
+          <label className="label" htmlFor="job-duration">Duration (mins)</label>
+          <input id="job-duration" className="input" type="number" inputMode="numeric" value={v.durationMins} onChange={set("durationMins")} />
         </div>
       </div>
 
       <div>
-        <label className="label">Scheduled start</label>
-        <input className="input" type="datetime-local" value={v.scheduledStart} onChange={set("scheduledStart")} />
+        <label className="label" htmlFor="job-scheduled-start">Scheduled start</label>
+        <input id="job-scheduled-start" className="input" type="datetime-local" value={v.scheduledStart} onChange={set("scheduledStart")} />
         <p className="mt-1 text-xs text-stone-400 dark:text-slate-500">
           Setting a start while status is Accepted/Scheduled adds it to your Google Calendar.
         </p>
@@ -308,10 +311,10 @@ export function JobForm({
 
       <div>
         <div className="flex items-center justify-between">
-          <label className="label">Notes</label>
+          <label className="label" htmlFor="job-notes">Notes</label>
           <DictateButton onText={(t) => setV((p) => ({ ...p, notes: p.notes ? `${p.notes} ${t}` : t }))} />
         </div>
-        <textarea className="input" rows={2} value={v.notes} onChange={set("notes")} />
+        <textarea id="job-notes" className="input" rows={2} value={v.notes} onChange={set("notes")} />
       </div>
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/15 dark:text-red-300">{error}</p>}
