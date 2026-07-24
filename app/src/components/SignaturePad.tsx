@@ -24,26 +24,46 @@ export function SignaturePad({
   const [hasInk, setHasInk] = useState(Boolean(value));
 
   // Size the canvas to its box (accounting for device pixel ratio) and paint
-  // any existing signature in.
+  // any existing signature in. Re-runs on resize (e.g. the tablet is rotated
+  // mid-signature) — setting canvas.width wipes the backing store, so we snapshot
+  // the current ink first and repaint it, keeping the strokes aligned to the box
+  // instead of offsetting them.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#171717";
-    if (value) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
-      img.src = value;
-    }
+
+    const applySize = (source?: string) => {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      canvas.width = rect.width * ratio; // resets the transform + styles below
+      canvas.height = rect.height * ratio;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#171717";
+      if (source) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        img.src = source;
+      }
+    };
+
+    applySize(value);
+
+    let lastW = canvas.getBoundingClientRect().width;
+    const ro = new ResizeObserver(() => {
+      const w = canvas.getBoundingClientRect().width;
+      if (w === lastW) return; // height is fixed (h-32); only width changes matter
+      lastW = w;
+      const snapshot = inkRef.current ? canvas.toDataURL("image/png") : undefined;
+      applySize(snapshot);
+    });
+    ro.observe(canvas);
+    return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
