@@ -3,8 +3,11 @@ import { prisma } from "@/lib/db";
 import { hashInviteToken } from "@/lib/invite";
 import { hashPassword, passwordProblem } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+const RATE_WINDOW_MS = 15 * 60_000;
 
 async function findLiveInvite(token: string) {
   if (!token) return null;
@@ -16,6 +19,9 @@ async function findLiveInvite(token: string) {
 // Show what an invite link is for (email + role), so the accept page can greet
 // the invitee. Public.
 export async function GET(req: Request) {
+  // Throttle invite-token guessing per IP (P2-C1).
+  const gate = rateLimit(`invite:ip:${clientIp(req)}`, { limit: 30, windowMs: RATE_WINDOW_MS });
+  if (!gate.ok) return tooManyRequests(gate.retryAfterSec);
   const token = new URL(req.url).searchParams.get("token") || "";
   const invite = await findLiveInvite(token);
   if (!invite) return json({ error: "This invite is invalid or has expired" }, 404);
@@ -25,6 +31,8 @@ export async function GET(req: Request) {
 // Accept an invite: set a name + password, create (or re-activate) the user with
 // the invited role, consume the invite, and sign them in.
 export async function POST(req: Request) {
+  const gate = rateLimit(`invite:ip:${clientIp(req)}`, { limit: 30, windowMs: RATE_WINDOW_MS });
+  if (!gate.ok) return tooManyRequests(gate.retryAfterSec);
   const body = await req.json().catch(() => ({}));
   const token = String(body.token || "");
   const name = String(body.name || "").trim();

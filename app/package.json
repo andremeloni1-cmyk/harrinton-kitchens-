@@ -5,7 +5,7 @@
   "description": "Harrington Kitchens — mobile-first dashboard to schedule kitchen installations and manage installers, with Google Calendar / Drive / Gmail automations.",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node scripts/gen-sw-version.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

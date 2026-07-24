@@ -6,6 +6,9 @@
 /out/
 next-env.d.ts
 
+# Generated per-build service-worker cache id (see scripts/gen-sw-version.mjs)
+/public/sw-version.js
+
 # production
 /build
 

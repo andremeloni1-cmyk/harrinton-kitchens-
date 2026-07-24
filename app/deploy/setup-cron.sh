@@ -30,10 +30,16 @@ if [[ -z "$SECRET" ]]; then
   pm2 restart harringtonkitchens --update-env >/dev/null 2>&1 || true
 fi
 
+# Log cron output to a file (not /dev/null) so a failed scan — expired Gmail
+# token, rotated CRON_SECRET, app down — is diagnosable instead of silently
+# losing job leads (P2-C4). `-sS` (not `-f`) so a non-2xx error body is captured.
+LOG="$APP_DIR/logs/cron.log"
+mkdir -p "$APP_DIR/logs"
+
 # Friday at 19:00, evaluated in TZ_VALUE (CRON_TZ applies to the lines below it).
-LINE="0 19 * * 5 curl -fsS -X POST -H 'x-cron-secret: $SECRET' ${APP_URL%/}/api/leads/scan >/dev/null 2>&1"
+LINE="0 19 * * 5 (date -Is; curl -sS -X POST -H 'x-cron-secret: $SECRET' ${APP_URL%/}/api/leads/scan; echo) >> $LOG 2>&1"
 # Weekly summary email — Monday at 08:00 (a look back at the week just gone).
-SUMMARY_LINE="0 8 * * 1 curl -fsS -X POST -H 'x-cron-secret: $SECRET' ${APP_URL%/}/api/summary/weekly >/dev/null 2>&1"
+SUMMARY_LINE="0 8 * * 1 (date -Is; curl -sS -X POST -H 'x-cron-secret: $SECRET' ${APP_URL%/}/api/summary/weekly; echo) >> $LOG 2>&1"
 
 # Install/replace the cron entries idempotently. Strip any previous lines we
 # manage and the CRON_TZ, then re-add CRON_TZ followed by the weekly jobs.
@@ -46,5 +52,6 @@ rm -f "$TMP"
 echo "Done."
 echo "  • Inbox checked every Friday at 7pm ($TZ_VALUE)."
 echo "  • Weekly summary emailed every Monday at 8am ($TZ_VALUE)."
+echo "  • Output logged to $LOG (check it if leads stop importing)."
 echo "Current crontab:"
 crontab -l | grep -E 'leads/scan|summary/weekly|CRON_TZ'

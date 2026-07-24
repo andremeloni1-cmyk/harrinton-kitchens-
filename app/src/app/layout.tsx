@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { BottomNav, SideNav } from "@/components/BottomNav";
 import { ScrollReset } from "@/components/ScrollReset";
@@ -20,6 +21,16 @@ export const metadata: Metadata = {
   description: "Schedule kitchen installations, manage installers and keep clients updated, with Google Calendar, Drive and Gmail automations.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: BRAND.name },
+  // Raster icons in addition to the SVG, so iOS home-screen installs get a real
+  // 180px apple-touch-icon and Android has PNG fallbacks (P3-15).
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -45,12 +56,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const accentCss = settings?.accentColor ? getAccentVarsCss(settings.accentColor) : null;
   // Role drives the four-surface nav (office / factory / field); null when signed out.
   const role = (await getSessionUser().catch(() => null))?.role ?? null;
+  // CSP nonce set by the proxy — stamp it on our one inline script (P3-14).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="en-GB" suppressHydrationWarning>
       <head>
         {/* Apply the saved theme before paint to avoid a light flash. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* Per-company accent override (falls back to the default brass in globals.css). */}
         {accentCss && <style dangerouslySetInnerHTML={{ __html: accentCss }} />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

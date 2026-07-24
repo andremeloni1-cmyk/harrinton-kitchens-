@@ -1,13 +1,25 @@
-// Harrington Kitchens service worker: web-push + conservative offline caching.
+// Service worker: web-push + conservative offline caching.
 //
-// Caching strategy is deliberately safe so it never pins a stale build:
+// Caching strategy is deliberately safe so it never pins a stale build or leaks
+// data:
+//   • The cache name carries a per-build id (sw-version.js, stamped by
+//     scripts/gen-sw-version.mjs), so every deploy gets a fresh cache and the
+//     activate handler prunes the previous one — content-hashed /_next/static
+//     can't accumulate on a device across deploys.
 //   • Hashed /_next/static assets are immutable → cache-first (fast).
-//   • Everything else (HTML, API GETs) is network-first → always fresh when
-//     online, cached copy only as an offline fallback.
+//   • Navigations are network-first and are NEVER stored — dashboard HTML can
+//     carry client data and must not persist after a session expires. Offline,
+//     the precached public /offline page is shown instead.
 // Writes (POST/PATCH/…) are never touched here; the app queues those itself.
 
-const CACHE = "harringtonkitchens-v1";
-const PRECACHE = ["/", "/manifest.webmanifest", "/icon.svg"];
+// Stamped per build; falls back to a constant if the file is absent (dev).
+try {
+  importScripts("/sw-version.js");
+} catch (e) {
+  /* not generated — dev fallback below */
+}
+const CACHE = "hk-" + (self.__SW_BUILD || "dev");
+const PRECACHE = ["/offline", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE).catch(() => {})));
@@ -43,36 +55,29 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // API responses carry client/invoice data — never cache them at rest. Just
-  // pass through to the network (offline callers handle the failure).
+  // API responses carry client/invoice data — never cache them at rest.
   if (url.pathname.startsWith("/api/")) return;
 
-  // Navigations + other GETs: network-first, fall back to cache offline.
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
-        }
-        return res;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        if (request.mode === "navigate") {
-          const shell = await caches.match("/");
-          if (shell) return shell;
-        }
-        return new Response("Offline", { status: 503, statusText: "Offline" });
-      })
-  );
+  // Navigations: network-first, and never stored (auth-gated HTML). Fall back to
+  // the precached public offline page when the network is unreachable.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request).catch(async () => (await caches.match("/offline")) || new Response("Offline", { status: 503, statusText: "Offline" }))
+    );
+    return;
+  }
+
+  // Other same-origin GETs (icon, manifest, …): cache-first from the precache,
+  // then network. Nothing new is stored beyond what install() precached.
+  event.respondWith(caches.match(request).then((hit) => hit || fetch(request)));
 });
 
 // ---- Web push (unchanged) --------------------------------------------------
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Harrington Kitchens", body: "", url: "/" };
+  // The server push payload carries the real (brand-configured) title; this is
+  // only a fallback if the payload is empty, so keep it brand-neutral.
+  let data = { title: "New notification", body: "", url: "/" };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch (e) {
