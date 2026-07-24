@@ -19,7 +19,12 @@ export async function GET(req: Request) {
 
   if (!row) return NextResponse.redirect(new URL("/portal?error=link", base));
 
-  await prisma.clientPortalToken.update({ where: { id: row.id }, data: { lastUsedAt: new Date() } });
+  // Single-use: consume the token atomically. A replay (forwarded link, shared
+  // device, or a link-preview bot that already fetched it) deletes 0 rows and is
+  // rejected, so the emailed link can't mint fresh sessions for its whole TTL.
+  const claimed = await prisma.clientPortalToken.deleteMany({ where: { id: row.id } });
+  if (claimed.count === 0) return NextResponse.redirect(new URL("/portal?error=link", base));
+
   await setPortalCookie(row.clientId);
   return NextResponse.redirect(new URL("/portal", base));
 }
