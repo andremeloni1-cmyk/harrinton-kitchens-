@@ -6,6 +6,7 @@ import { isOverdue } from "@/lib/invoices";
 import { rememberContact } from "@/lib/contacts";
 import { stageForLegacyStatus, legacyStatusForStage, isStage, stageIndex, type PipelineStage } from "@/lib/pipeline";
 import { JOB_STATUSES } from "@/lib/types";
+import { EMAIL_RE } from "@/lib/enquiry";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,15 @@ export async function PATCH(req: Request, { params }: Params) {
   // stageForLegacyStatus, and silently un-schedules the job.
   if ("status" in body && !JOB_STATUSES.includes(body.status)) {
     return json({ error: "invalid status" }, 400);
+  }
+
+  // Reject a malformed / CR-LF-bearing client email — it is stored verbatim and
+  // would inject headers into every automated email for this job (P1-12).
+  if ("clientEmail" in body && typeof body.clientEmail === "string") {
+    body.clientEmail = body.clientEmail.trim();
+    if (body.clientEmail && !EMAIL_RE.test(body.clientEmail)) {
+      return json({ error: "That email address doesn't look right." }, 400);
+    }
   }
 
   const data: Record<string, unknown> = {};

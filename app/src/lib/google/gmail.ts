@@ -3,6 +3,10 @@ import { getAuthorizedClient } from "./oauth";
 import { prisma } from "@/lib/db";
 
 const wrap76 = (s: string): string => s.replace(/(.{76})/g, "$1\r\n");
+// Strip CR/LF from a value interpolated into an RFC 2822 header so a crafted
+// address/filename (e.g. a clientEmail containing "\r\nBcc: attacker@x.com")
+// can't inject extra headers.
+const headerValue = (s: string): string => String(s).replace(/[\r\n]+/g, " ").trim();
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -60,7 +64,7 @@ function buildRawMessage(opts: {
       `--${MIX}--`;
   }
 
-  const mime = `From: ${from}\r\nTo: ${to}\r\nSubject: ${encodedSubject}\r\nMIME-Version: 1.0\r\n${rootEntity}`;
+  const mime = `From: ${headerValue(from)}\r\nTo: ${headerValue(to)}\r\nSubject: ${encodedSubject}\r\nMIME-Version: 1.0\r\n${rootEntity}`;
 
   return Buffer.from(mime).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

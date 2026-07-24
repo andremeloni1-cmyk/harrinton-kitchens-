@@ -70,6 +70,19 @@ describe("PATCH /api/jobs/[id] — status validation (P2-B2)", () => {
   });
 });
 
+describe("PATCH /api/jobs/[id] — email header injection guard (P1-12)", () => {
+  it("rejects a clientEmail containing CR/LF and does not write", async () => {
+    const res = await patch({ clientEmail: "a@b.com\r\nBcc: evil@x.com" });
+    expect(res.status).toBe(400);
+    expect(jobUpdate).not.toHaveBeenCalled();
+  });
+
+  it("accepts a normal clientEmail", async () => {
+    const res = await patch({ clientEmail: "a@b.com" });
+    expect(res.status).toBe(200);
+  });
+});
+
 describe("PATCH /api/jobs/[id] — backward stage move suppresses side effects (P2-B2)", () => {
   it("suppresses effects when moving backward along the spine (HANDOVER → DEPOSIT)", async () => {
     const res = await patch({ pipelineStage: "DEPOSIT" });
