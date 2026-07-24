@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { ensureDefaultLeadSources } from "@/lib/leads";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_settings");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
   const email = (body.email || "").trim().toLowerCase();
   // Accept either a full email address or a bare company domain.

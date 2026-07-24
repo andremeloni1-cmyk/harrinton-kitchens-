@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 import { RETURN_TRIP_MAINTENANCE } from "@/lib/report-templates";
 import type { ChecklistItem } from "@/lib/pdf";
 
@@ -38,7 +38,8 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const id = (await params).id;
   const body = await req.json().catch(() => ({}));
   const items = sanitize(body);
@@ -56,7 +57,8 @@ export async function PATCH(req: Request, { params }: Params) {
 /** Seed the standard return-trip maintenance checklist, appending any items not
  * already present. */
 export async function POST(_req: Request, { params }: Params) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const job = await prisma.job.findUnique({ where: { id: (await params).id } });
   if (!job) return json({ error: "not found" }, 404);
 

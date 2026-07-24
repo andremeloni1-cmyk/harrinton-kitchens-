@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { draftReport } from "@/lib/report-ai";
 import { visionConfigured } from "@/lib/vision";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
 
   if (!visionConfigured()) {
     return json({ ok: false, message: "Add ANTHROPIC_API_KEY on the server to enable AI auto-fill." });

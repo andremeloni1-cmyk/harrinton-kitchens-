@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { dedupeJobFolders } from "@/lib/google/drive";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 // One-time cleanup of duplicate files already in Drive, plus duplicate document
 // rows (same job + filename), keeping the most recent of each.
 export async function POST() {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_settings");
+  if (gate instanceof Response) return gate;
 
   const drive = await dedupeJobFolders();
 

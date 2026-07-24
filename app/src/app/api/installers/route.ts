@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { json } from "@/lib/utils";
-import { isAuthenticated } from "@/lib/session";
+import { isAuthenticated, requirePermission } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return json({ error: "unauthorized" }, 401);
+  const gate = await requirePermission("manage_jobs");
+  if (gate instanceof Response) return gate;
   const body = await req.json().catch(() => ({}));
   if (!body.name || typeof body.name !== "string" || !body.name.trim()) {
     return json({ error: "name is required" }, 400);

@@ -78,4 +78,29 @@ describe("API authorization gates", () => {
     const { POST } = await import("./jobs/route");
     await expectGated("manage_jobs", () => POST(new Request("http://t", { method: "POST", body: "{}" })));
   });
+
+  it("P2-A3 · POST /api/installers requires manage_jobs", async () => {
+    const { POST } = await import("./installers/route");
+    await expectGated("manage_jobs", () => POST(new Request("http://t", { method: "POST", body: "{}" })));
+  });
+
+  it("P2-A4 · POST /api/lead-sources requires manage_settings", async () => {
+    const { POST } = await import("./lead-sources/route");
+    await expectGated("manage_settings", () => POST(new Request("http://t", { method: "POST", body: "{}" })));
+  });
+
+  it("P2-A5 · POST /api/jobs/[id]/photos requires manage_jobs", async () => {
+    const { POST } = await import("./jobs/[id]/photos/route");
+    await expectGated("manage_jobs", () => POST(new Request("http://t", { method: "POST", body: "{}" }), jobParam));
+  });
+
+  it("P2-A6 · POST /api/auth/xero/disconnect requires manage_settings", async () => {
+    const { POST } = await import("./auth/xero/disconnect/route");
+    await expectGated("manage_settings", () => POST());
+  });
+
+  it("P2-A7 · POST /api/hardware requires factory_board", async () => {
+    const { POST } = await import("./hardware/route");
+    await expectGated("factory_board", () => POST(new Request("http://t", { method: "POST", body: "{}" })));
+  });
 });
