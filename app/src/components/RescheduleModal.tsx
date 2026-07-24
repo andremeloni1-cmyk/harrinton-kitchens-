@@ -27,12 +27,24 @@ export function RescheduleModal({
   const [notify, setNotify] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<Busy[]>([]); // other commitments to check clashes against
+  const [error, setError] = useState<string | null>(null);
 
-  // Initialise fields when a job is selected.
-  if (job && open && start === "" && job.scheduledStart) {
-    setStart(toLocalInput(job.scheduledStart));
-    setDuration(String(job.durationMins || WORKDAY_MINS));
-  }
+  // Initialise the fields when the modal opens (or the job changes) — NOT on
+  // every render. A render-time init snapped a cleared date straight back, so
+  // clearing it to unschedule the job was unreachable.
+  const jobId = job?.id;
+  const jobScheduledStart = job?.scheduledStart ?? null;
+  const jobDuration = job?.durationMins ?? null;
+  useEffect(() => {
+    if (!open) return;
+    // Deliberate init-on-open sync (not a render-time derive, which made a
+    // cleared date impossible to keep).
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setStart(jobScheduledStart ? toLocalInput(jobScheduledStart) : "");
+    setDuration(String(jobDuration || WORKDAY_MINS));
+    setError(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [open, jobId, jobScheduledStart, jobDuration]);
 
   // Load other scheduled jobs + the owner's Google Calendar events so we can warn
   // about double-bookings. Runs once each time the modal opens.
@@ -84,6 +96,7 @@ export function RescheduleModal({
   async function save() {
     if (!job) return;
     setSaving(true);
+    setError(null);
     try {
       const s = start ? new Date(start) : null;
       const e = s ? jobEnd(s, dur) : null;
@@ -101,6 +114,8 @@ export function RescheduleModal({
       setBusy([]);
       onDone();
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't move the job — please try again.");
     } finally {
       setSaving(false);
     }
@@ -160,6 +175,7 @@ export function RescheduleModal({
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="h-5 w-5 rounded accent-brand-600" />
           Email the client about the new time
         </label>
+        {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex gap-3 pt-1">
           <button className="btn-secondary flex-1" onClick={onClose} disabled={saving}>
             Cancel
