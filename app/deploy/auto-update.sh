@@ -64,6 +64,11 @@ deploy() {
     ls -1t "$BACKUP_DIR"/*.db 2>/dev/null | tail -n "+$((KEEP_BACKUPS + 1))" | xargs -r rm -f
   fi
 
+  # Same heap bump as update.sh: Next's type-check step exceeds Node's default
+  # old-space ceiling on this codebase and the build aborts. An unattended
+  # updater failing this way rebuild-loops until the backoff catches it.
+  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
+
   # Build BEFORE migrating: the build no longer migrates, so the running app
   # stays on the old schema until the build succeeds; only then do we migrate +
   # reload. A failed build aborts the chain, never leaving old code on a new DB.

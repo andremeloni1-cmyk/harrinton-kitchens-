@@ -89,6 +89,23 @@ cd /root/harrinton-kitchens-/app && sudo bash deploy/update.sh
 
 Pulls the latest code, migrates, rebuilds and reloads with zero config changes.
 
+The script builds *before* it migrates, so a failed build leaves the running app
+untouched on the old schema rather than stranding old code on a new database —
+re-run it as often as you like.
+
+> **`JavaScript heap out of memory` during the build?** The scripts already run
+> the build with `--max-old-space-size=4096`, because Next's type-check step
+> exceeds Node's default ceiling on this codebase. If a much larger build ever
+> outgrows that, override it for one run:
+>
+> ```bash
+> NODE_OPTIONS=--max-old-space-size=6144 bash deploy/update.sh
+> ```
+>
+> Check the box has the headroom first with `free -h`; setting a limit above
+> available memory moves the crash from Node to the kernel's OOM killer, which
+> can take the running app down with it.
+
 ## Automatic updates (~1 minute after a push)
 
 To skip the manual step entirely, install the auto-updater once:
