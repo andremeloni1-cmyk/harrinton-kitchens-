@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/job";
 import { queueMutation } from "@/lib/offline-queue";
 import { DictateButton } from "@/components/DictateButton";
+import { MudmapAndPlan } from "@/components/MudmapAndPlan";
 import { emptyRoom, parseMeasure, roomSummary, type Room, type Measurement } from "@/lib/measure";
 
 type SaveState = "idle" | "saving" | "saved" | "offline";
@@ -197,6 +198,10 @@ export function MeasureForm({ jobId }: { jobId: string }) {
                     defaultLabel={() => "Opening"}
                     items={room.openings}
                     onChange={(list) => setMeasurements(room.id, "openings", list)}
+                    // Which wall, and how far along it — optional, and only
+                    // worth filling in when the sketch actually shows it. The
+                    // drawn plan places the ones that have it.
+                    wallLabels={room.walls.map((w, i) => w.label || `Wall ${String.fromCharCode(65 + i)}`)}
                   />
 
                   <div>
@@ -260,6 +265,9 @@ export function MeasureForm({ jobId }: { jobId: string }) {
         </p>
       )}
 
+      {/* The sketch off site, and the plan drawn from what's above */}
+      <MudmapAndPlan jobId={jobId} />
+
       {/* Complete — diffs against the quote, drafts a variation, moves to Design */}
       {rooms.length > 0 && (
         <div className="mt-6 border-t border-stone-100 pt-4 dark:border-night-line">
@@ -292,30 +300,59 @@ export function MeasureForm({ jobId }: { jobId: string }) {
 }
 
 function MeasureList({
-  title, addLabel, defaultLabel, items, onChange,
+  title, addLabel, defaultLabel, items, onChange, wallLabels,
 }: {
   title: string;
   addLabel: string;
   defaultLabel: (index: number) => string;
   items: Measurement[];
   onChange: (list: Measurement[]) => void;
+  /** When given, each row also takes a wall and an offset along it. */
+  wallLabels?: string[];
 }) {
+  const patch = (i: number, p: Partial<Measurement>) =>
+    onChange(items.map((x, j) => (j === i ? { ...x, ...p } : x)));
+
   return (
     <div>
       <p className="mb-1.5 text-sm font-medium text-stone-700 dark:text-slate-200">{title}</p>
       <div className="space-y-2">
         {items.map((m, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              className="input flex-1"
-              value={m.label}
-              placeholder="Label"
-              onChange={(e) => onChange(items.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-            />
-            <div className="w-28">
-              <MmInput value={m.mm} onChange={(mm) => onChange(items.map((x, j) => (j === i ? { ...x, mm } : x)))} />
+          <div key={i} className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <input
+                className="input flex-1"
+                value={m.label}
+                placeholder="Label"
+                onChange={(e) => patch(i, { label: e.target.value })}
+              />
+              <div className="w-28">
+                <MmInput value={m.mm} onChange={(mm) => patch(i, { mm })} />
+              </div>
+              <button className="px-1.5 text-stone-400 hover:text-red-600" aria-label="Remove" onClick={() => onChange(items.filter((_, j) => j !== i))}>✕</button>
             </div>
-            <button className="px-1.5 text-stone-400 hover:text-red-600" aria-label="Remove" onClick={() => onChange(items.filter((_, j) => j !== i))}>✕</button>
+            {wallLabels && wallLabels.length > 0 && (
+              <div className="flex items-center gap-2 pl-1">
+                <select
+                  className="input flex-1 text-sm"
+                  value={m.wall || ""}
+                  onChange={(e) => patch(i, { wall: e.target.value || undefined })}
+                >
+                  <option value="">Which wall? (optional)</option>
+                  {wallLabels.map((w) => (
+                    <option key={w} value={w}>{w}</option>
+                  ))}
+                </select>
+                <div className="w-28">
+                  <MmInput
+                    value={m.offsetMm ?? null}
+                    placeholder="from start"
+                    onChange={(mm) => patch(i, { offsetMm: mm })}
+                  />
+                </div>
+                <span className="w-[22px] shrink-0" aria-hidden />
+              </div>
+            )}
           </div>
         ))}
       </div>

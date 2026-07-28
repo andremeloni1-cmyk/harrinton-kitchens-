@@ -42,7 +42,15 @@ const SCHEMA = {
             type: "array",
             items: {
               type: "object",
-              properties: { label: { type: "string" }, mm: { type: "number" } },
+              properties: {
+                label: { type: "string" },
+                mm: { type: "number" },
+                // Which wall it sits in and how far along, when the sketch says
+                // — this is what lets the generated plan draw it in place
+                // rather than listing it underneath.
+                wall: { type: "string" },
+                offsetMm: { type: "number" },
+              },
               required: ["label"],
               additionalProperties: false,
             },
@@ -70,7 +78,11 @@ const PROMPT =
   "All dimensions are millimetres — convert any that are clearly in metres or centimetres to mm. " +
   "For each room capture: a name; the ceiling height; each wall run as a labelled length; each " +
   "opening (door/window) as a labelled width; the power/water/gas service positions; a list of " +
-  "appliances; and any other notes. Only include values you can actually read — omit a field rather " +
+  "appliances; and any other notes. " +
+  "For an opening, also record which wall it is drawn in (`wall`, matching that wall run's label) " +
+  "and how far along that wall it starts, measured from the wall's beginning (`offsetMm`) — but " +
+  "only when the sketch actually shows it. An opening with no position is fine and is expected. " +
+  "Only include values you can actually read — omit a field rather " +
   "than guessing. If the sheet is illegible or clearly not a measure sheet, return an empty rooms array.";
 
 export async function readSiteSheet(images: SheetImage[]): Promise<Room[] | null> {

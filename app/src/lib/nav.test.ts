@@ -32,6 +32,26 @@ describe("NAV_KEYS", () => {
       expect(NAV_KEYS.INSTALLER).not.toContain(key);
     }
   });
+  it("gives the office-side roles the design tab, leading for the designer", () => {
+    for (const role of ["ADMIN", "OFFICE", "DESIGNER"] as const) {
+      expect(NAV_KEYS[role]).toContain("design");
+    }
+    expect(NAV_KEYS.DESIGNER[0]).toBe("design");
+  });
+  it("keeps design off the factory and field bars", () => {
+    expect(NAV_KEYS.FACTORY).not.toContain("design");
+    expect(NAV_KEYS.INSTALLER).not.toContain("design");
+  });
+  it("holds every nav bar to six items — past that the targets get mis-tapped", () => {
+    for (const role of ROLES) {
+      expect(NAV_KEYS[role].length).toBeLessThanOrEqual(6);
+    }
+  });
+  it("never repeats an item within a role's bar", () => {
+    for (const role of ROLES) {
+      expect(new Set(NAV_KEYS[role]).size).toBe(NAV_KEYS[role].length);
+    }
+  });
 });
 
 describe("navKeysFor", () => {
