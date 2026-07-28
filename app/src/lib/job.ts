@@ -67,6 +67,8 @@ export interface InvoiceDTO {
   reference?: string | null;
   xeroInvoiceId?: string | null;
   xeroNumber?: string | null;
+  sentAt?: string | null;
+  lastRemindedAt?: string | null;
   lastSyncedAt?: string | null;
   createdAt?: string;
   overdue?: boolean;

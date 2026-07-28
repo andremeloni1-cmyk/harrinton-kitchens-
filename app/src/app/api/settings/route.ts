@@ -19,6 +19,8 @@ export async function GET() {
           googleEmail: account.googleEmail,
           calendarId: account.calendarId,
           signature: account.signature,
+          abn: account.abn,
+          paymentDetails: account.paymentDetails,
           accentColor: account.accentColor,
           logo: account.logo,
           logoMime: account.logoMime,
@@ -75,6 +77,9 @@ export async function PATCH(req: Request) {
           name: body.account.name ?? account.name,
           calendarId: body.account.calendarId ?? account.calendarId,
           signature: "signature" in body.account ? body.account.signature || null : account.signature,
+          abn: "abn" in body.account ? body.account.abn || null : account.abn,
+          paymentDetails:
+            "paymentDetails" in body.account ? body.account.paymentDetails || null : account.paymentDetails,
           // Accent hex — stored only if it's a valid colour, else cleared to the
           // platform default.
           accentColor:

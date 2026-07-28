@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Template = { key: string; subject: string; body: string; enabled: boolean };
 type SettingsData = {
-  account: { name: string | null; email: string; googleEmail: string | null; calendarId: string; signature?: string | null; accentColor?: string | null; logo?: string | null; logoMime?: string | null; logoDark?: string | null; logoDarkMime?: string | null } | null;
+  account: { name: string | null; email: string; googleEmail: string | null; calendarId: string; signature?: string | null; abn?: string | null; paymentDetails?: string | null; accentColor?: string | null; logo?: string | null; logoMime?: string | null; logoDark?: string | null; logoDarkMime?: string | null } | null;
   templates: Template[];
   google: { configured: boolean; connected: boolean };
   xero?: {
@@ -37,6 +37,8 @@ export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [name, setName] = useState("");
   const [signature, setSignature] = useState("");
+  const [abn, setAbn] = useState("");
+  const [paymentDetails, setPaymentDetails] = useState("");
   const [accentColor, setAccentColor] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [logoMime, setLogoMime] = useState<string | null>(null);
@@ -82,6 +84,8 @@ export default function SettingsPage() {
     setData(d);
     setName(d.account?.name || "");
     setSignature(d.account?.signature || "");
+    setAbn(d.account?.abn || "");
+    setPaymentDetails(d.account?.paymentDetails || "");
     setAccentColor(d.account?.accentColor || "");
     setLogo(d.account?.logo || null);
     setLogoMime(d.account?.logoMime || null);
@@ -140,7 +144,7 @@ export default function SettingsPage() {
     try {
       await api("/api/settings", {
         method: "PATCH",
-        body: JSON.stringify({ account: { name, signature, accentColor: accentColor || null, logo, logoMime, logoDark, logoDarkMime }, templates }),
+        body: JSON.stringify({ account: { name, signature, abn, paymentDetails, accentColor: accentColor || null, logo, logoMime, logoDark, logoDarkMime }, templates }),
       });
       setMsg("Saved ✓");
     } finally {
@@ -418,6 +422,24 @@ export default function SettingsPage() {
         <h2 className="mb-3 font-semibold text-stone-900 dark:text-slate-100">Your business</h2>
         <label className="label">Name (used in emails & reports)</label>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={`e.g. ${BRAND.name}`} />
+        <label className="label mt-3">ABN</label>
+        <input
+          className="input"
+          value={abn}
+          onChange={(e) => setAbn(e.target.value)}
+          placeholder="e.g. 12 345 678 901"
+        />
+        <p className="mt-1 text-xs text-stone-400 dark:text-slate-500">
+          Printed on tax invoices. An Australian tax invoice over $82.50 has to show it.
+        </p>
+        <label className="label mt-3">Payment details</label>
+        <textarea
+          className="input"
+          rows={3}
+          value={paymentDetails}
+          onChange={(e) => setPaymentDetails(e.target.value)}
+          placeholder={"Shown on invoices and in the covering email, e.g.\nBank transfer — BSB 000-000, Acc 1234 5678"}
+        />
         <label className="label mt-3">Email signature</label>
         <textarea
           className="input"

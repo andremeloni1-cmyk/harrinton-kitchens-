@@ -69,6 +69,15 @@ const DEFAULT_TEMPLATES = [
       "Kind regards,\n{{ownerName}}",
   },
   {
+    key: "payment_reminder",
+    subject: "Invoice {{invoiceNumber}} is overdue — {{jobTitle}}",
+    body:
+      "Hi {{clientName}},\n\n" +
+      "Our records show invoice {{invoiceNumber}} for {{amountDue}} was due on {{dueDate}} and is still outstanding.\n\n" +
+      "A copy is attached. If it's already on its way, or if there's a problem with it, just reply to this email and we'll sort it out.\n\n" +
+      "Kind regards,\n{{ownerName}}",
+  },
+  {
     key: "cancelled",
     subject: "Your kitchen installation has been cancelled — {{jobTitle}}",
     body:

@@ -537,6 +537,10 @@ export async function generateReportPdf(metaIn: Meta, dataIn: ReportData): Promi
 export type QuoteLine = { description: string; quantity: number; unitAmount: number; isSection?: boolean };
 
 export type QuoteMeta = {
+  // Which document this is. The layout is shared — a tax invoice is a quote
+  // with different words and a legal footer — so the variant is a flag rather
+  // than a second renderer that would drift out of step.
+  docType?: "QUOTE" | "TAX INVOICE";
   quoteNumber: string; // e.g. QUO-1001 or the job reference
   jobTitle: string;
   reference: string;
@@ -555,6 +559,10 @@ export type QuoteMeta = {
   // Drawings / renders to append as full-page images after the quote. PNG/JPEG
   // only (pdf-lib can't embed HEIC); bad images are skipped.
   appendixImages?: { base64: string; mime: string; caption?: string }[];
+  // Tax-invoice only. An Australian tax invoice for more than $82.50 must show
+  // the supplier's ABN, so it is printed whenever one is set.
+  abn?: string | null;
+  paymentDetails?: string | null;
 };
 
 /** Generates a polished A4 quote/estimate PDF and returns the bytes. Line
@@ -639,7 +647,9 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
   const BAND_H = 92;
   page.drawRectangle({ x: 0, y: height - BAND_H, width, height: BAND_H, color: CHARCOAL });
   page.drawRectangle({ x: 0, y: height - BAND_H - 3.5, width, height: 3.5, color: ORANGE });
-  page.drawText("QUOTE", { x: MARGIN, y: height - 38, size: 9.5, font: bold, color: ORANGE });
+  const docType = meta.docType || "QUOTE";
+  const isInvoice = docType === "TAX INVOICE";
+  page.drawText(docType, { x: MARGIN, y: height - 38, size: 9.5, font: bold, color: ORANGE });
   page.drawText(meta.ownerName!, { x: MARGIN, y: height - 60, size: 20, font: bold, color: WHITE });
   page.drawText(`${meta.reference} — ${meta.jobTitle}`.slice(0, 70), {
     x: MARGIN,
@@ -664,13 +674,14 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
 
   // ---- Meta panel -----------------------------------------------------------
   const details: [string, string][] = [
-    ["QUOTE NO.", meta.quoteNumber || meta.reference],
+    [isInvoice ? "INVOICE NO." : "QUOTE NO.", meta.quoteNumber || meta.reference],
     ["DATE", meta.quoteDate || "—"],
-    ["VALID UNTIL", meta.validUntil || "—"],
-    ["PREPARED BY", meta.ownerName!],
+    [isInvoice ? "DUE" : "VALID UNTIL", meta.validUntil || "—"],
+    [isInvoice ? "FROM" : "PREPARED BY", meta.ownerName!],
   ];
+  if (isInvoice && meta.abn) details.push(["ABN", meta.abn]);
   const fullRows: [string, string][] = [];
-  if (meta.billTo) fullRows.push(["QUOTE FOR", meta.billTo]);
+  if (meta.billTo) fullRows.push([isInvoice ? "BILL TO" : "QUOTE FOR", meta.billTo]);
   if (meta.siteContact) fullRows.push(["SITE CONTACT", meta.siteContact]);
   if (meta.address) fullRows.push(["SITE ADDRESS", meta.address]);
 
@@ -776,7 +787,15 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
   y -= 26;
 
   // ---- Notes ----------------------------------------------------------------
-  const note = meta.notes || "This quote is valid for 30 days. Prices are in " + currency + " and include GST where shown. Please get in touch to accept or discuss.";
+  const note =
+    meta.notes ||
+    (isInvoice
+      ? "Payment is due by the date shown above. Prices are in " +
+        currency +
+        " and include GST where shown."
+      : "This quote is valid for 30 days. Prices are in " +
+        currency +
+        " and include GST where shown. Please get in touch to accept or discuss.");
   ensureSpace(60);
   page.drawRectangle({ x: MARGIN, y: y - 1.5, width: 12, height: 3.5, color: ORANGE });
   page.drawText("Notes", { x: MARGIN + 20, y: y - 2, size: 11.5, font: bold, color: INK });
@@ -785,6 +804,24 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
     ensureSpace(15);
     page.drawText(l, { x: MARGIN, y, size: 10, font, color: MUTED });
     y -= 15;
+  }
+
+  // ---- How to pay -----------------------------------------------------------
+  // An invoice nobody can pay from is an invoice that gets chased, so the bank
+  // details go on the document rather than only in the covering email.
+  if (isInvoice && meta.paymentDetails) {
+    y -= 12;
+    ensureSpace(60);
+    page.drawRectangle({ x: MARGIN, y: y - 1.5, width: 12, height: 3.5, color: ORANGE });
+    page.drawText("How to pay", { x: MARGIN + 20, y: y - 2, size: 11.5, font: bold, color: INK });
+    y -= 20;
+    for (const raw of toWinAnsi(meta.paymentDetails).split("\n")) {
+      for (const l of wrap(raw, font, 10, contentW)) {
+        ensureSpace(15);
+        page.drawText(l, { x: MARGIN, y, size: 10, font, color: MUTED });
+        y -= 15;
+      }
+    }
   }
 
   // ---- Appendix: drawings / renders -----------------------------------------
@@ -812,7 +849,7 @@ export async function generateQuotePdf(metaIn: QuoteMeta, linesIn: QuoteLine[]):
   const generated = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   pages.forEach((p: PDFPage, i: number) => {
     p.drawLine({ start: { x: MARGIN, y: MARGIN - 16 }, end: { x: width - MARGIN, y: MARGIN - 16 }, thickness: 0.5, color: RULE });
-    p.drawText(`${meta.ownerName} — Quote ${meta.quoteNumber || meta.reference} • ${generated}`, {
+    p.drawText(`${meta.ownerName} — ${isInvoice ? "Tax invoice" : "Quote"} ${meta.quoteNumber || meta.reference} • ${generated}`, {
       x: MARGIN,
       y: MARGIN - 28,
       size: 8,
