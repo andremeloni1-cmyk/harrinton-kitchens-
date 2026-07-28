@@ -2,7 +2,7 @@
   "name": "harrington-kitchens",
   "version": "1.0.0",
   "private": true,
-  "description": "Harrington Kitchens — mobile-first dashboard to schedule kitchen installations and manage installers, with Google Calendar / Drive / Gmail automations.",
+  "description": "Harrington Kitchens \u2014 mobile-first dashboard to schedule kitchen installations and manage installers, with Google Calendar / Drive / Gmail automations.",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && node scripts/gen-sw-version.mjs && next build",
@@ -23,8 +23,8 @@
   },
   "overrides": {
     "google-auth-library": "^10.9.0",
-    "glob": "^10.5.0",
-    "postcss": "^8.5.10",
+    "glob": "^13.0.6",
+    "postcss": "^8.5.18",
     "sharp": "^0.35.3"
   },
   "dependencies": {
@@ -48,7 +48,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.0",
     "eslint-config-next": "16.2.11",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.18",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.14",
     "tsx": "^4.19.1",
