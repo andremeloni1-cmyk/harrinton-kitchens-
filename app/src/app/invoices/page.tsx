@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Modal } from "@/components/Modal";
 import { EmptyState } from "@/components/EmptyState";
 import { MoneyTabs } from "@/components/MoneyTabs";
+import { InvoiceEmailSheet, type EmailMode } from "@/components/InvoiceEmailSheet";
 import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { PriceItemPicker } from "@/components/PriceItemPicker";
 import { fmtMoney, fmtDay, relativeTime } from "@/lib/format";
@@ -316,6 +317,10 @@ function InvoiceDetailModal({
       await onChanged();
     });
 
+  // Emailing the invoice and chasing payment both open a compose sheet: the
+  // office edits exactly what goes out, and nothing sends on one tap.
+  const [emailMode, setEmailMode] = useState<EmailMode | null>(null);
+
   const push = (authorise: boolean) =>
     run(authorise ? "authorise" : "push", async () => {
       if (authorise && !confirm(`Authorise ${invoice.number} in Xero? It becomes a live invoice awaiting payment.`)) return;
@@ -572,6 +577,22 @@ function InvoiceDetailModal({
               Connect Xero in Settings to push this invoice to your books.
             </p>
           )}
+          <button
+            onClick={() => setEmailMode("invoice")}
+            disabled={busy !== null}
+            className="w-full rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 ring-1 ring-stone-200 hover:bg-stone-50 dark:bg-night-850 dark:text-slate-200 dark:ring-night-line dark:hover:bg-night-800"
+          >
+            ✉️ {invoice.sentAt ? "Email again" : "Email to client"}
+          </button>
+          {invoice.overdue && (
+            <button
+              onClick={() => setEmailMode("reminder")}
+              disabled={busy !== null}
+              className="w-full rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/25"
+            >
+              Chase payment
+            </button>
+          )}
           {(editable || (invoice.status === "authorised" && invoice.amountPaid === 0)) && (
             <button
               onClick={remove}
@@ -587,6 +608,16 @@ function InvoiceDetailModal({
           )}
         </div>
       </div>
+
+      {emailMode && (
+        <InvoiceEmailSheet
+          invoiceId={invoice.id}
+          invoiceNumber={invoice.number}
+          mode={emailMode}
+          onClose={() => setEmailMode(null)}
+          onSent={onChanged}
+        />
+      )}
     </Modal>
   );
 }

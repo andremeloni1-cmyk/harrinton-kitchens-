@@ -48,6 +48,11 @@ model CompanySettings {
   xeroBankAccountId     String?
   xeroBankAccountName   String?
   xeroExpenseAccountCode String?
+  // Tax-invoice letterhead. An Australian tax invoice for more than $82.50 has
+  // to show the supplier's ABN, so emailing invoices without somewhere to store
+  // one would produce documents that aren't compliant.
+  abn                String?
+  paymentDetails     String? // bank details printed on the invoice and in the email
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -598,6 +603,10 @@ model Invoice {
   xeroContactId String?
   xeroNumber    String?   // Xero may renumber when org auto-numbering is on
   lastSyncedAt  DateTime?
+  // Emailed to the client, and last chased for payment. Both are records of a
+  // thing that was sent, so they are never cleared once set.
+  sentAt          DateTime?
+  lastRemindedAt  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

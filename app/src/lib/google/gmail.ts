@@ -15,6 +15,7 @@ const escapeHtml = (s: string): string =>
  * PDF attachment (multipart/mixed). */
 function buildRawMessage(opts: {
   to: string;
+  cc?: string;
   from: string;
   subject: string;
   text: string;
@@ -22,7 +23,7 @@ function buildRawMessage(opts: {
   attachment?: { filename: string; data: Buffer; mimeType?: string };
   logo?: { data: Buffer; mime: string };
 }): string {
-  const { to, from, subject, text, html, attachment, logo } = opts;
+  const { to, cc, from, subject, text, html, attachment, logo } = opts;
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
 
   // text + html alternative.
@@ -64,7 +65,10 @@ function buildRawMessage(opts: {
       `--${MIX}--`;
   }
 
-  const mime = `From: ${headerValue(from)}\r\nTo: ${headerValue(to)}\r\nSubject: ${encodedSubject}\r\nMIME-Version: 1.0\r\n${rootEntity}`;
+  // Cc is a real header, not a second send: the office wants its own copy in
+  // the same thread the client sees.
+  const ccHeader = cc?.trim() ? `Cc: ${headerValue(cc.trim())}\r\n` : "";
+  const mime = `From: ${headerValue(from)}\r\nTo: ${headerValue(to)}\r\n${ccHeader}Subject: ${encodedSubject}\r\nMIME-Version: 1.0\r\n${rootEntity}`;
 
   return Buffer.from(mime).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -74,6 +78,7 @@ function buildRawMessage(opts: {
  * if sent. */
 export async function sendEmail(opts: {
   to: string;
+  cc?: string;
   subject: string;
   body: string;
   attachment?: { filename: string; data: Buffer; mimeType?: string };
@@ -94,7 +99,7 @@ export async function sendEmail(opts: {
     `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1c1917;white-space:pre-wrap">${escapeHtml(opts.body)}</div>` +
     (logo ? `<div style="margin-top:16px"><img src="cid:logo" alt="logo" style="max-height:90px;max-width:280px"></div>` : "");
 
-  const raw = buildRawMessage({ to: opts.to, from, subject: opts.subject, text: opts.body, html, attachment: opts.attachment, logo });
+  const raw = buildRawMessage({ to: opts.to, cc: opts.cc, from, subject: opts.subject, text: opts.body, html, attachment: opts.attachment, logo });
   await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
   return true;
 }
