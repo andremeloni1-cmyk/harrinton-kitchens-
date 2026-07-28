@@ -17,6 +17,13 @@ fi
 echo "==> Pulling latest"
 git pull --ff-only
 
+# Next's type-check step is the memory high-water mark of the whole build, and
+# Node's default old-space ceiling (~2GB) is below what this app now needs — it
+# died with SIGABRT mid-build on a box with 6GB free. Raise it unless the caller
+# already has an opinion. Not set in package.json: `NODE_OPTIONS=… npm run build`
+# is shell syntax, and a Windows dev shouldn't inherit a deploy host's problem.
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
+
 echo "==> Installing deps"
 npm ci || npm install
 
