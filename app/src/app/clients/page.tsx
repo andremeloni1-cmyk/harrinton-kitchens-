@@ -9,6 +9,8 @@ import { InvoiceStatusPill } from "@/components/InvoiceStatusPill";
 import { fmtMoney, fmtDay } from "@/lib/format";
 import { api } from "@/lib/job";
 import { companyPalette } from "@/lib/colors";
+import { SelectionChips } from "@/components/Selections";
+import type { SelectionEntry } from "@/lib/selections";
 
 type ClientJob = {
   id: string;
@@ -21,6 +23,7 @@ type ClientJob = {
   currency: string;
   siteContact?: string | null;
   address?: string | null;
+  selections?: SelectionEntry[];
 };
 type ClientInvoice = {
   id: string;
@@ -259,6 +262,11 @@ export default function ClientsPage() {
                         <p className="truncate text-xs text-stone-400 dark:text-slate-500">
                           📍 {[j.siteContact, j.address].filter(Boolean).join(" · ")}
                         </p>
+                      )}
+                      {j.selections && j.selections.length > 0 && (
+                        <div className="mt-1.5">
+                          <SelectionChips entries={j.selections} max={3} />
+                        </div>
                       )}
                     </div>
                     {j.quoteAmount != null && (

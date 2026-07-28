@@ -24,6 +24,7 @@ import { PlanReview } from "@/components/PlanReview";
 import { TradeSchedule } from "@/components/TradeSchedule";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { PriceItemPicker } from "@/components/PriceItemPicker";
+import { Selections } from "@/components/Selections";
 import { fmtMoney, fmtDay, fmtRange, relativeTime } from "@/lib/format";
 import { api, type JobDTO } from "@/lib/job";
 import { queueMutation } from "@/lib/offline-queue";
@@ -507,6 +508,9 @@ export default function JobDetailPage() {
           </Row>
         )}
       </div>
+
+      {/* What the client chose — colours, finishes, hardware */}
+      <Selections jobId={id} />
 
       {job.description && (
         <div className="card mb-3 p-4">

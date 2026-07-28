@@ -4,6 +4,7 @@ import { isAuthenticated } from "@/lib/session";
 import { ensureClientRows, clientKey, companyDisplayName } from "@/lib/clients";
 import { ensureDefaultLeadSources } from "@/lib/leads";
 import { isOverdue } from "@/lib/invoices";
+import { isFilled, parseSelections, type SelectionEntry } from "@/lib/selections";
 import type { Client, Invoice } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ type ClientJob = {
   currency: string;
   siteContact: string | null;
   address: string | null;
+  // What they chose for this job — only the decided rows, so the clients list
+  // stays small while still answering "what colour were their doors".
+  selections: SelectionEntry[];
 };
 
 type ClientInvoice = {
@@ -130,6 +134,17 @@ export async function GET() {
 
   const sources = await prisma.leadSource.findMany({ where: { enabled: true } });
   const jobs = await prisma.job.findMany({ orderBy: { createdAt: "desc" } });
+  // One query for every job's selections, grouped here — a per-job include on
+  // the jobs query would be a second read per row on a list this page loads on
+  // every visit.
+  const selectionsByJob = new Map<string, SelectionEntry[]>();
+  for (const row of await prisma.selection.findMany({ orderBy: { position: "asc" } })) {
+    const [entry] = parseSelections([row]);
+    if (!entry || !isFilled(entry)) continue;
+    const list = selectionsByJob.get(row.jobId);
+    if (list) list.push(entry);
+    else selectionsByJob.set(row.jobId, [entry]);
+  }
   const clientRows = await prisma.client.findMany({
     include: { invoices: { orderBy: { createdAt: "desc" } } },
   });
@@ -204,6 +219,7 @@ export async function GET() {
       currency: j.currency,
       siteContact: j.clientName,
       address: j.address,
+      selections: selectionsByJob.get(j.id) || [],
     });
   }
 

@@ -389,6 +389,31 @@ model CheckMeasure {
   updatedAt   DateTime  @updatedAt
 }
 
+// What the client chose for a job: colours, finishes and hardware, one row per
+// named slot (see lib/selections.ts). Named slots rather than a note on the job
+// so "which white are the doors" is answerable months later, filterable across
+// jobs, and printable as a workshop spec sheet. Rows that don't fit a standard
+// slot use slot = "other" and carry their own label.
+model Selection {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  slot      String // door | carcass | benchtop | splashback | kickboards | handles | hinges | runners | other
+  label     String   @default("")
+  brand     String   @default("")
+  code      String   @default("")
+  colour    String   @default("")
+  finish    String   @default("")
+  supplier  String   @default("")
+  notes     String   @default("")
+  photoId   String? // Document id of a swatch / product photo
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jobId])
+}
+
 // A visit to site by a staff member — a sales consultation (P4.4) or a check
 // measure (P5). Assignee is a staff User (denormalised name for display).
 model SiteVisit {
@@ -526,6 +551,7 @@ model Job {
   approvals    Approval[]
   siteVisits   SiteVisit[]
   checkMeasure CheckMeasure?
+  selections   Selection[]
   variations   Variation[]
   drawingSets  DrawingSet[]
   jobStations  JobStation[]
