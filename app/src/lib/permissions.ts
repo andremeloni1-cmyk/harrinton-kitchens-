@@ -12,16 +12,22 @@ export type Permission =
   | "factory_board" //   factory board + hardware tracking
   | "field_app" //       installer / field surfaces
   | "manage_settings" // company settings, integrations, email templates
-  | "manage_users"; //   team management (invite, change role, deactivate)
+  | "manage_users" //    team management (invite, change role, deactivate)
+  | "manage_loads" //    build and commit a truck's loading list
+  | "deliver"; //        tick items onto the truck, capture proof of delivery
 
 const MATRIX: Record<Permission, readonly Role[]> = {
-  view: ["ADMIN", "OFFICE", "DESIGNER", "FACTORY", "INSTALLER"],
+  view: ["ADMIN", "OFFICE", "DESIGNER", "FACTORY", "INSTALLER", "DRIVER"],
   manage_jobs: ["ADMIN", "OFFICE", "DESIGNER"],
   edit_money: ["ADMIN", "OFFICE"],
   factory_board: ["ADMIN", "OFFICE", "FACTORY"],
   field_app: ["ADMIN", "OFFICE", "INSTALLER"],
   manage_settings: ["ADMIN"],
   manage_users: ["ADMIN"],
+  // Deciding what should go is an office act; putting it on the truck and
+  // proving it arrived is the floor's and the driver's.
+  manage_loads: ["ADMIN", "OFFICE"],
+  deliver: ["ADMIN", "OFFICE", "FACTORY", "DRIVER"],
 };
 
 /** Whether `user` (from getSessionUser) may perform `action`. Null → false. */
