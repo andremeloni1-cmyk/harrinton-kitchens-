@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { StatusPill } from "@/components/StatusPill";
 import { RescheduleModal } from "@/components/RescheduleModal";
@@ -9,7 +9,19 @@ import { Modal } from "@/components/Modal";
 import { fmtRange, fmtDay } from "@/lib/format";
 import { api, type JobDTO } from "@/lib/job";
 import { workdaySegments, jobEnd, WORKDAY_MINS } from "@/lib/schedule";
-import { companyPalette, companyLabel, companyKeyOf } from "@/lib/colors";
+import { companyPalette, companyLabel, companyKeyOf, legendFor, paletteMap, type CompanyPalette } from "@/lib/colors";
+import { CalendarLegend } from "@/components/CalendarLegend";
+import {
+  CalendarBoard,
+  lanesFromInstallers,
+  UNASSIGNED_LANE_ID,
+  type BoardLane,
+} from "@/components/CalendarBoard";
+
+// Month reads a whole month at a glance, week reads a day's detail, board reads
+// who is on what — 31 columns of crew lanes would never fit a phone, so the
+// lane grid is its own view rather than a replacement for either.
+type CalendarMode = "month" | "week" | "board";
 
 // A job rendered on a particular day, carrying that day's working segment.
 type DayJob = JobDTO & { _segStart: string; _segEnd: string; _dayIndex: number; _dayCount: number };
@@ -29,6 +41,9 @@ function startOfMonth(d: Date): Date {
 function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
+function isWeekend(d: Date): boolean {
+  return d.getDay() === 0 || d.getDay() === 6;
+}
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -39,7 +54,7 @@ export default function CalendarPage() {
   const [jobs, setJobs] = useState<JobDTO[]>([]);
   const [external, setExternal] = useState<ExternalEvent[]>([]);
   const [calStatus, setCalStatus] = useState<{ connected: boolean; error?: string }>({ connected: false });
-  const [mode, setMode] = useState<"month" | "week">("month");
+  const [mode, setMode] = useState<CalendarMode>("month");
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState<Date>(() => {
@@ -53,6 +68,7 @@ export default function CalendarPage() {
   const [hint, setHint] = useState<string | null>(null);
   const [summaryJob, setSummaryJob] = useState<DayJob | null>(null);
   const [summaryEvent, setSummaryEvent] = useState<ExternalEvent | null>(null);
+  const [installers, setInstallers] = useState<BoardLane[]>([]);
 
   async function load() {
     setLoading(true);
@@ -77,6 +93,11 @@ export default function CalendarPage() {
       }
       await load();
     })();
+    // Crew lanes for the board. Best-effort: the board falls back to showing
+    // everything as Unassigned rather than failing to render.
+    api<{ installers: { id: string; name: string; color?: string | null }[] }>("/api/installers")
+      .then((r) => setInstallers(lanesFromInstallers(r.installers)))
+      .catch(() => {});
   }, []);
 
   // Pull the owner's existing Google Calendar events for the visible range so
@@ -159,6 +180,48 @@ export default function CalendarPage() {
     }
   }
 
+  /**
+   * Board drop: the cell carries both a day and a crew, so a single drag can
+   * move a job and reassign it at once — which is the whole point of looking at
+   * a lane grid. Dropping on the Unassigned row clears the installer.
+   */
+  async function moveJobToLaneDay(laneId: string, day: Date) {
+    const job = jobs.find((j) => j.id === dragId);
+    if (!job || !job.scheduledStart) return;
+    const installerId = laneId === UNASSIGNED_LANE_ID ? null : laneId;
+
+    const old = new Date(job.scheduledStart);
+    const next = new Date(day);
+    next.setHours(old.getHours(), old.getMinutes(), 0, 0);
+    const movedDay = !sameDay(old, next);
+    const movedCrew = (job.installerId ?? null) !== installerId;
+    if (!movedDay && !movedCrew) return;
+
+    const end = jobEnd(next, job.durationMins || WORKDAY_MINS);
+    setJobs((prev) =>
+      prev.map((j) =>
+        j.id === job.id
+          ? { ...j, scheduledStart: next.toISOString(), scheduledEnd: end.toISOString(), installerId }
+          : j
+      )
+    );
+    try {
+      await api(`/api/jobs/${job.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          scheduledStart: next.toISOString(),
+          scheduledEnd: end.toISOString(),
+          installerId,
+          notify: movedDay,
+        }),
+      });
+      setHint(movedDay ? `Moved "${job.title}" — client notified` : `Reassigned "${job.title}"`);
+      setTimeout(() => setHint(null), 2500);
+    } catch {
+      load();
+    }
+  }
+
   async function dropOnDay(day: Date) {
     if (!dragId) return;
     const job = jobs.find((j) => j.id === dragId);
@@ -180,15 +243,35 @@ export default function CalendarPage() {
     [weekStart]
   );
 
-  // Distinct companies among scheduled jobs, for the colour-coding legend.
-  const companies = useMemo(() => {
-    const map = new Map<string, { label: string; swatch: string }>();
-    for (const j of jobs) {
-      const key = companyKeyOf(j);
-      if (!map.has(key)) map.set(key, { label: companyLabel(j), swatch: companyPalette(j).swatch });
+  // The jobs actually on screen, so the key describes this view rather than
+  // every company on the books.
+  const visibleJobs = useMemo(() => {
+    const range =
+      mode === "month"
+        ? monthCells
+        : mode === "week" || mode === "board"
+          ? days
+          : days;
+    const seen = new Set<string>();
+    const out: JobDTO[] = [];
+    for (const day of range) {
+      for (const j of jobsForDay(day)) {
+        if (seen.has(j.id)) continue;
+        seen.add(j.id);
+        out.push(j);
+      }
     }
-    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [jobs]);
+    return out;
+    // jobsForDay reads `jobs`, so that is the dependency that matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, mode, monthCells, days]);
+
+  const legend = useMemo(() => legendFor(visibleJobs), [visibleJobs]);
+  const palettes = useMemo(() => paletteMap(legend), [legend]);
+  const paletteOf = useCallback(
+    (job: JobDTO): CompanyPalette => palettes.get(companyKeyOf(job)) ?? companyPalette(job),
+    [palettes]
+  );
 
   function shiftMonth(delta: number) {
     setMonth(new Date(month.getFullYear(), month.getMonth() + delta, 1));
@@ -200,7 +283,7 @@ export default function CalendarPage() {
         <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Calendar</h1>
         {/* Mode toggle */}
         <div className="flex rounded-xl bg-stone-100 p-1 text-sm font-semibold dark:bg-night-800">
-          {(["month", "week"] as const).map((m) => (
+          {(["month", "week", "board"] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -219,17 +302,8 @@ export default function CalendarPage() {
       {/* Upcoming workload */}
       {jobs.length > 0 && <WorkloadCard jobs={jobs} />}
 
-      {/* Company colour key */}
-      {companies.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1.5">
-          {companies.map((c) => (
-            <span key={c.label} className="inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-slate-400">
-              <span className={`h-2.5 w-2.5 rounded-full ${c.swatch}`} />
-              {c.label}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Company colour key — the single source for every colour on screen */}
+      <CalendarLegend entries={legend} />
 
       {/* Google Calendar status */}
       {!calStatus.connected ? (
@@ -334,34 +408,55 @@ export default function CalendarPage() {
                     onClick={() => setSelectedDay(day)}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => dropOnDay(day)}
-                    className={`flex min-h-[3.4rem] flex-col items-center rounded-xl py-1.5 text-center transition ${
+                    className={`flex min-h-[4.75rem] flex-col items-stretch overflow-hidden rounded-xl px-0.5 py-1 text-center transition ${
                       dragId ? "ring-1 ring-dashed ring-brand-400/60" : ""
-                    }`}
+                    } ${isWeekend(day) && !isSelected ? "bg-white/[0.02]" : ""}`}
                   >
-                    <span
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm transition ${
-                        isSelected
-                          ? "bg-brand-600 font-bold text-white shadow-sm"
-                          : isToday
-                            ? "font-bold text-brand-400 ring-1 ring-brand-500"
-                            : inMonth
-                              ? "text-slate-100"
-                              : "text-slate-600"
-                      }`}
-                    >
-                      {day.getDate()}
+                    <span className="flex justify-center">
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          isSelected
+                            ? "bg-brand-600 font-bold text-white shadow-sm"
+                            : isToday
+                              ? "font-bold text-brand-400 ring-1 ring-brand-500"
+                              : inMonth
+                                ? "text-slate-100"
+                                : "text-slate-600"
+                        }`}
+                      >
+                        {day.getDate()}
+                      </span>
                     </span>
-                    <span className="mt-1 flex h-2 flex-wrap items-center justify-center gap-0.5">
-                      {dayJobs.slice(0, 3).map((j) => (
+
+                    {/* Labelled chips beat dots: you can read a day without
+                        opening it. Two, then a count — three crowds 360px. */}
+                    <span className="mt-0.5 flex flex-col gap-0.5">
+                      {dayJobs.slice(0, 2).map((j) => (
                         <span
                           key={j.id}
-                          className={`h-1.5 w-1.5 rounded-full ${companyPalette(j).dot}`}
                           title={`${j.title} — ${companyLabel(j)}`}
-                        />
+                          className={`flex items-center gap-1 rounded-[5px] px-1 py-[1px] text-left ${
+                            j.status === "lead"
+                              ? "border border-dashed border-slate-500 bg-transparent"
+                              : "bg-white/10"
+                          } ${j.status === "completed" ? "opacity-45" : ""}`}
+                        >
+                          <span className={`h-2.5 w-[3px] shrink-0 rounded-full ${paletteOf(j).swatch}`} />
+                          <span className="min-w-0 flex-1 truncate text-[9px] leading-[13px] text-slate-200">
+                            {j.title}
+                          </span>
+                        </span>
                       ))}
-                      {dayJobs.length > 3 && <span className="text-[9px] leading-none text-slate-400">+{dayJobs.length - 3}</span>}
+                      {dayJobs.length > 2 && (
+                        <span className="text-[9px] leading-[11px] text-slate-400">+{dayJobs.length - 2} more</span>
+                      )}
                       {dayBusy.length > 0 && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-sky-400" title={`${dayBusy.length} calendar event(s)`} />
+                        <span className="flex items-center gap-1 rounded-[5px] bg-sky-500/15 px-1 py-[1px]">
+                          <span className="h-2.5 w-[3px] shrink-0 rounded-full bg-sky-400" />
+                          <span className="truncate text-[9px] leading-[13px] text-sky-200">
+                            {dayBusy.length === 1 ? "Busy" : `${dayBusy.length} busy`}
+                          </span>
+                        </span>
                       )}
                     </span>
                   </button>
@@ -389,6 +484,34 @@ export default function CalendarPage() {
               setDragId={setDragId}
             />
           </div>
+        </>
+      ) : mode === "board" ? (
+        <>
+          {/* Week nav — the board reads a week at a time */}
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-stone-500 dark:text-slate-400">
+              {weekStart.toLocaleDateString("en-AU", { day: "numeric", month: "short" })} –{" "}
+              {days[6].toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+            </p>
+            <div className="flex items-center gap-1">
+              <button className="btn-ghost px-2" onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * 86400000))} aria-label="Previous week">‹</button>
+              <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setWeekStart(startOfWeek(new Date()))}>This week</button>
+              <button className="btn-ghost px-2" onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * 86400000))} aria-label="Next week">›</button>
+            </div>
+          </div>
+
+          <CalendarBoard
+            days={days}
+            jobs={jobs}
+            lanes={installers}
+            legend={legend}
+            today={today}
+            jobsForDay={jobsForDay}
+            onOpen={setSummaryJob}
+            onDropOnLaneDay={moveJobToLaneDay}
+            dragId={dragId}
+            setDragId={setDragId}
+          />
         </>
       ) : (
         <>
