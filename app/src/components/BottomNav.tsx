@@ -36,6 +36,7 @@ const ALL_ITEMS: Record<string, NavItem> = {
   field: { href: "/field", label: "Field", icon: FieldIcon, match: ["/field"] },
   calendar: { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   design: { href: "/design", label: "Design", icon: RulerIcon, match: ["/design"] },
+  deliveries: { href: "/deliveries", label: "Deliveries", icon: TruckIcon, match: ["/deliveries"] },
   installers: { href: "/installers", label: "Installers", icon: HardHatIcon },
   clients: { href: "/clients", label: "Clients", icon: UsersIcon },
   reports: { href: "/reports", label: "Reports", icon: ReportIcon },
@@ -172,6 +173,17 @@ function FieldIcon({ className }: { className?: string }) {
       <circle cx="7" cy="17.5" r="1.7" />
       <circle cx="17" cy="17.5" r="1.7" />
       <path d="M9 15.5h6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function TruckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M2 6.5h11v9H2z" strokeLinejoin="round" />
+      <path d="M13 9.5h4l4 4v2h-8z" strokeLinejoin="round" />
+      <circle cx="6.5" cy="17.5" r="1.8" />
+      <circle cx="17" cy="17.5" r="1.8" />
+      <path d="M8.3 17.5h6.9" strokeLinecap="round" />
     </svg>
   );
 }

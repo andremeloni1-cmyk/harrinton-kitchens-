@@ -5,13 +5,15 @@ import { ROLES, type Role } from "./roles";
 // The authoritative expectation of the matrix, asserted role-by-role so a change
 // to permissions.ts must be a deliberate change here too.
 const EXPECTED: Record<Permission, Role[]> = {
-  view: ["ADMIN", "OFFICE", "DESIGNER", "FACTORY", "INSTALLER"],
+  view: ["ADMIN", "OFFICE", "DESIGNER", "FACTORY", "INSTALLER", "DRIVER"],
   manage_jobs: ["ADMIN", "OFFICE", "DESIGNER"],
   edit_money: ["ADMIN", "OFFICE"],
   factory_board: ["ADMIN", "OFFICE", "FACTORY"],
   field_app: ["ADMIN", "OFFICE", "INSTALLER"],
   manage_settings: ["ADMIN"],
   manage_users: ["ADMIN"],
+  manage_loads: ["ADMIN", "OFFICE"],
+  deliver: ["ADMIN", "OFFICE", "FACTORY", "DRIVER"],
 };
 
 describe("can() — full matrix, every role × every permission", () => {

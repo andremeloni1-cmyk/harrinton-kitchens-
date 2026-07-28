@@ -561,6 +561,7 @@ model Job {
   snags        SnagItem[]
   messages     PortalMessage[]
   expenses     Expense[]
+  loadStops    LoadStop[]
 
   notes        String?
   completedAt  DateTime? // set when status first becomes "completed" (real completion time)
@@ -785,6 +786,111 @@ model HardwareEvent {
   qty       Int?
   note      String?
   createdAt DateTime     @default(now())
+}
+
+// ------------------------------------------------------------ deliveries ----
+//
+// A truck load, its stops, what should be on it, what actually went on, and the
+// photographic proof it reached site. Modelled on the A-Z Kitchens tracker,
+// minus poly consignments — Harrington finishes in-house.
+
+model Load {
+  id         String    @id @default(cuid())
+  reference  String    @unique // LOAD-1001
+  status     String    @default("open") // open | departed | delivered | cancelled
+  driverId   String? // the User driving; denormalised name survives them leaving
+  driverName String?
+  vehicle    String    @default("")
+  note       String    @default("")
+  departedAt DateTime?
+  deliveredAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  stops  LoadStop[]
+  items  LoadItem[]
+  proofs DeliveryProof[]
+}
+
+// One truck can serve several jobs at several addresses.
+model LoadStop {
+  id       String @id @default(cuid())
+  loadId   String
+  load     Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  jobId    String
+  job      Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  address  String @default("")
+  sequence Int    @default(1)
+
+  items  LoadItem[]
+  proofs DeliveryProof[]
+
+  @@unique([loadId, jobId])
+  @@index([loadId])
+}
+
+// A line on the truck: an assembled cabinet, a loose part (door, end panel,
+// filler, kickboard), or a free-text extra (sink, tap, oven, benchtop).
+//
+// `expected` is what the office committed to; `loadedAt` is what actually
+// happened. Holding both on one row is what lets the reconciliation report the
+// difference in both directions — an expected row never loaded is missing, a
+// loaded row that was never expected is on the wrong truck. `description` is
+// denormalised at commit time so the list still reads correctly if a cabinet is
+// later renamed or the cut list is re-extracted.
+model LoadItem {
+  id          String    @id @default(cuid())
+  loadId      String
+  load        Load      @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  stopId      String?
+  stop        LoadStop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  kind        String    @default("extra") // cabinet | part | extra
+  cabinetId   String?
+  partId      String?
+  description String
+  qty         Int       @default(1)
+  expected    Boolean   @default(true)
+  loadedAt    DateTime?
+  loadedById  String?
+  method      String? // tap | scan — a cluster of taps usually means bad labels
+  createdAt   DateTime  @default(now())
+
+  proofs DeliveryProof[]
+
+  @@index([loadId])
+  @@index([stopId])
+}
+
+// Photographic proof that something reached site.
+//
+// Two decisions carried over from A-Z and worth keeping: the timestamp is
+// server time, not the device's — a phone clock is trivially wrong and
+// trivially changed, and the point of this record is that it settles an
+// argument months later. And the photo is addressed by the hash of its own
+// bytes, so re-uploading the same image can't quietly overwrite an earlier
+// proof.
+//
+// itemId null means a site photo for the whole stop rather than one line.
+model DeliveryProof {
+  id              String    @id @default(cuid())
+  loadId          String
+  load            Load      @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  stopId          String?
+  stop            LoadStop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  itemId          String?
+  item            LoadItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  photoData       String // base64
+  photoMime       String    @default("image/jpeg")
+  photoHash       String // sha256 of the bytes
+  note            String    @default("")
+  latitude        Float?
+  longitude       Float?
+  deliveredById   String?
+  deliveredByName String?
+  createdAt       DateTime  @default(now())
+
+  @@index([loadId])
+  @@index([itemId])
 }
 
 // Editable templates for the automated client emails.

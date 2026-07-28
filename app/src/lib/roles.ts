@@ -6,7 +6,8 @@
 //  DESIGNER  — drawings, revisions, sign-off (design stage)
 //  FACTORY   — the factory board and stations
 //  INSTALLER — the field app / installer portal
-export const ROLES = ["ADMIN", "OFFICE", "DESIGNER", "FACTORY", "INSTALLER"] as const;
+//  DRIVER    — the truck: loading lists and proof of delivery
+export const ROLES = ["ADMIN", "OFFICE", "DESIGNER", "FACTORY", "INSTALLER", "DRIVER"] as const;
 
 export type Role = (typeof ROLES)[number];
 
@@ -22,6 +23,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   DESIGNER: "Designer",
   FACTORY: "Factory",
   INSTALLER: "Installer",
+  DRIVER: "Driver",
 };
 
 /** The default role granted to a newly-invited user when none is specified. */

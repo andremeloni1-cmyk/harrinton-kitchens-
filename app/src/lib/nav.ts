@@ -12,6 +12,8 @@ export function homeForRole(role: Role): string {
       return "/factory";
     case "INSTALLER":
       return "/field";
+    case "DRIVER":
+      return "/deliveries";
     default:
       return "/"; // ADMIN / OFFICE / DESIGNER → the jobs dashboard
   }
@@ -30,6 +32,7 @@ export const NAV_KEYS: Record<Role, string[]> = {
   DESIGNER: ["design", "jobs", "calendar", "clients", "reports", "more"],
   FACTORY: ["factory", "calendar", "more"],
   INSTALLER: ["field", "calendar", "more"],
+  DRIVER: ["deliveries", "calendar", "more"],
 };
 
 /** Nav keys for a (possibly still-loading) role — falls back to the office set. */
