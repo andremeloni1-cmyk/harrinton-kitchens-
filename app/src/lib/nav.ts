@@ -17,11 +17,17 @@ export function homeForRole(role: Role): string {
   }
 }
 
-/** Ordered primary-nav item keys per role (resolved to items in BottomNav). */
+/**
+ * Ordered primary-nav item keys per role (resolved to items in BottomNav).
+ *
+ * The office-side roles carry six items rather than five so Design can be added
+ * without evicting anything — the owner's call. Factory and field stay at three:
+ * they are used one-handed on a floor, and a crowded bar is a mis-tap.
+ */
 export const NAV_KEYS: Record<Role, string[]> = {
-  ADMIN: ["jobs", "calendar", "installers", "clients", "more"],
-  OFFICE: ["jobs", "calendar", "installers", "clients", "more"],
-  DESIGNER: ["jobs", "calendar", "clients", "reports", "more"],
+  ADMIN: ["jobs", "calendar", "design", "installers", "clients", "more"],
+  OFFICE: ["jobs", "calendar", "design", "installers", "clients", "more"],
+  DESIGNER: ["design", "jobs", "calendar", "clients", "reports", "more"],
   FACTORY: ["factory", "calendar", "more"],
   INSTALLER: ["field", "calendar", "more"],
 };

@@ -3,7 +3,19 @@
 // capture form, the AI site-sheet reader (P5.3) and the discrepancy hook (P5.4).
 
 // A labelled measurement in millimetres (the trade works in mm).
-export type Measurement = { label: string; mm: number | null };
+//
+// Openings carry two extra, optional hints: which wall they sit in and how far
+// along it they start. Both are optional because a hand-drawn mudmap often
+// doesn't say — a plan drawn from this places the ones it knows and lists the
+// rest rather than inventing positions.
+export type Measurement = {
+  label: string;
+  mm: number | null;
+  /** Wall label this opening belongs to, e.g. "Wall A". Openings only. */
+  wall?: string;
+  /** Distance from the start of that wall to the opening, in mm. */
+  offsetMm?: number | null;
+};
 
 export type RoomServices = { power: string; water: string; gas: string };
 
@@ -50,7 +62,12 @@ function normMeasurements(v: unknown): Measurement[] {
     .map((m): Measurement | null => {
       if (!m || typeof m !== "object") return null;
       const r = m as Record<string, unknown>;
-      return { label: typeof r.label === "string" ? r.label : "", mm: num(r.mm) };
+      const out: Measurement = { label: typeof r.label === "string" ? r.label : "", mm: num(r.mm) };
+      // Only carried when present, so a wall run stays a plain {label, mm}.
+      if (typeof r.wall === "string" && r.wall.trim()) out.wall = r.wall.trim();
+      const offset = num(r.offsetMm);
+      if (offset != null) out.offsetMm = offset;
+      return out;
     })
     .filter((m): m is Measurement => m !== null);
 }
