@@ -782,7 +782,12 @@ model HardwareItem {
   category     String?  // Hinges / Runners / Fixings / Sealants…
   supplier     String?
   unit         String   @default("box") // box | pack | each | roll | tube
-  packSize     String?  // e.g. "100 pcs" — printed on the label
+  packSize     String?  // e.g. "100 pcs" — the human label, printed on the QR tag
+  // The same fact as packSize, but as a number the ordering maths can use.
+  // Demand comes out of a cut list in pieces ("24 hinges") while stock is
+  // counted in boxes, and "100 pcs" is a string. 1 means the line is counted in
+  // single pieces, which is the safe reading when nobody has set it.
+  piecesPerPack Int     @default(1)
   qtyOnHand    Int      @default(0)
   reorderLevel Int      @default(1) // at/below this the list suggests reordering
   location     String?  // shelf / bay in the factory
@@ -795,8 +800,59 @@ model HardwareItem {
   flaggedAt    DateTime?
   orderedAt    DateTime?
   events       HardwareEvent[]
+  rules        HardwareRule[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// How a cabinet on a CAD board report becomes hardware to order.
+//
+// A board report lists panels and never mentions a hinge, so something has to
+// say "a door panel up to 900mm takes two of HW-1007". That sentence is data,
+// not code: it changes whenever the hinge brand, the runner range or the drawer
+// system changes, and it is maintained by the people who buy the hardware.
+//
+// A rule counts *panels* when panelCode is set, and cabinets when it isn't —
+// which means a part code this app has never seen (a drawer front, a corner
+// post) is a rule someone types, not a release. See lib/hardware-rules.ts.
+model HardwareRule {
+  id       String  @id @default(cuid())
+  name     String // "Hinges — doors to 900mm"
+  active   Boolean @default(true)
+  // Evaluation order. Within one stock line the first matching rule wins, so a
+  // schedule reads the way it is spoken: doors to 900 take two, to 1600 take
+  // three — without the short doors collecting five between them.
+  position Int     @default(0)
+
+  // Glob patterns, `*` only. Empty matches anything.
+  cabinetType String @default("")
+  panelCode   String @default("")
+
+  // Size bands in mm; null is unbounded. Float rather than Int because the
+  // report prints half-millimetres and a band should compare against what it
+  // actually says.
+  minCabinetWidthMm  Float?
+  maxCabinetWidthMm  Float?
+  minCabinetDepthMm  Float?
+  maxCabinetDepthMm  Float?
+  minCabinetHeightMm Float?
+  maxCabinetHeightMm Float?
+  minPanelLengthMm   Float?
+  maxPanelLengthMm   Float?
+  minPanelWidthMm    Float?
+  maxPanelWidthMm    Float?
+
+  // What it produces, in pieces. Deleting a stock line takes its rules with it:
+  // a rule pointing at nothing can only produce a phantom order line.
+  hardwareItemId String
+  hardwareItem   HardwareItem @relation(fields: [hardwareItemId], references: [id], onDelete: Cascade)
+  qtyPer         Float        @default(1)
+  notes          String       @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([hardwareItemId])
 }
 
 // Audit trail per hardware line: deliveries in, reorder flags, orders placed.
