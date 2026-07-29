@@ -1,12 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/job";
 import { queueMutation } from "@/lib/offline-queue";
 import { DictateButton } from "@/components/DictateButton";
 import { MudmapAndPlan } from "@/components/MudmapAndPlan";
-import { emptyRoom, parseMeasure, roomSummary, type Room, type Measurement } from "@/lib/measure";
+import { MeasureImport } from "@/components/MeasureImport";
+import { ServicePointEditor } from "@/components/ServicePointEditor";
+import { RoomPhotos, type MeasurePhoto } from "@/components/RoomPhotos";
+import {
+  emptyRoom,
+  parseMeasure,
+  roomSummary,
+  type Room,
+  type Measurement,
+  type ServicePoint,
+} from "@/lib/measure";
+import { refServicePoints, roomRef } from "@/lib/measure-ref";
 
 type SaveState = "idle" | "saving" | "saved" | "offline";
 
@@ -35,11 +46,14 @@ function MmInput({ value, onChange, placeholder }: { value: number | null; onCha
 
 export function MeasureForm({ jobId }: { jobId: string }) {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [cmRef, setCmRef] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Record<string, MeasurePhoto>>({});
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [openId, setOpenId] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [proposal, setProposal] = useState<Room[] | null>(null);
+  const [importing, setImporting] = useState(false);
   const [aiMsg, setAiMsg] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completeResult, setCompleteResult] = useState<{ discrepancies: { note: string }[]; variationId: string | null } | null>(null);
@@ -47,14 +61,20 @@ export function MeasureForm({ jobId }: { jobId: string }) {
   const sheetInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api<{ measure: { data: { rooms: unknown[] } } }>(`/api/jobs/${jobId}/measure`)
+    api<{ measure: { ref: string | null; data: { rooms: unknown[] } } }>(`/api/jobs/${jobId}/measure`)
       .then((r) => {
         const parsed = parseMeasure(JSON.stringify(r.measure.data));
+        setCmRef(r.measure.ref);
         setRooms(parsed.rooms);
         if (parsed.rooms[0]) setOpenId(parsed.rooms[0].id);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    // The photo index is separate from the measure so a thumbnail knows its
+    // filename; a failure here only costs the alt text, so it stays quiet.
+    api<{ photos: MeasurePhoto[] }>(`/api/jobs/${jobId}/measure/photos`)
+      .then((r) => setPhotos(Object.fromEntries(r.photos.map((p) => [p.id, p]))))
+      .catch(() => {});
   }, [jobId]);
 
   const save = useCallback(
@@ -93,6 +113,34 @@ export function MeasureForm({ jobId }: { jobId: string }) {
   const removeRoom = (id: string) => mutate((rs) => rs.filter((r) => r.id !== id));
 
   const setMeasurements = (id: string, key: "walls" | "openings", list: Measurement[]) => patchRoom(id, { [key]: list } as Partial<Room>);
+
+  // Every room's cross-reference, and every service point's within it. Derived
+  // from position, so the refs on screen are the same ones the plan and the
+  // register print — there is no second source of truth to drift.
+  const refsByRoom = useMemo(() => {
+    const out: Record<string, { room: string; points: Record<string, string> }> = {};
+    rooms.forEach((room, i) => {
+      if (!cmRef) return;
+      const points: Record<string, string> = {};
+      for (const { ref, pointId } of refServicePoints(cmRef, i, room)) points[pointId] = ref;
+      out[room.id] = { room: roomRef(cmRef, i), points };
+    });
+    return out;
+  }, [rooms, cmRef]);
+
+  // Imported rooms append rather than replace: a measure is usually part typed,
+  // part pasted, and silently dropping what was already there would be the one
+  // unrecoverable thing this screen could do.
+  async function importRooms(imported: Room[]) {
+    setImporting(true);
+    try {
+      mutate((rs) => [...rs, ...imported]);
+      if (imported[0]) setOpenId(imported[0].id);
+      setAiMsg(null);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   // AI site-sheet reader — reads a photo into proposed rooms for review; the
   // user merges them in, nothing auto-commits.
@@ -155,13 +203,21 @@ export function MeasureForm({ jobId }: { jobId: string }) {
       </Link>
 
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-stone-900 dark:text-slate-100">Check measure</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-stone-900 dark:text-slate-100">Check measure</h1>
+          {cmRef && (
+            <p className="text-xs text-stone-500 dark:text-slate-400">
+              <span className="font-bold tabular-nums text-brand-600">{cmRef}</span> — write this on the site sheet
+            </p>
+          )}
+        </div>
         <SaveChip state={saveState} />
       </div>
 
       <div className="space-y-3">
-        {rooms.map((room) => {
+        {rooms.map((room, roomIndex) => {
           const open = openId === room.id;
+          const roomRefs = refsByRoom[room.id];
           return (
             <div key={room.id} className="card overflow-hidden">
               <button
@@ -172,6 +228,11 @@ export function MeasureForm({ jobId }: { jobId: string }) {
                   <p className="truncate font-semibold text-stone-900 dark:text-slate-100">{room.name || "Untitled room"}</p>
                   <p className="truncate text-xs text-stone-400 dark:text-slate-500">{roomSummary(room)}</p>
                 </div>
+                {roomRefs && (
+                  <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-bold tabular-nums text-stone-500 dark:bg-night-800 dark:text-slate-400">
+                    {roomRefs.room}
+                  </span>
+                )}
                 <span className={`shrink-0 text-stone-400 transition ${open ? "rotate-180" : ""}`}>▾</span>
               </button>
 
@@ -204,14 +265,36 @@ export function MeasureForm({ jobId }: { jobId: string }) {
                     wallLabels={room.walls.map((w, i) => w.label || `Wall ${String.fromCharCode(65 + i)}`)}
                   />
 
-                  <div>
-                    <p className="mb-1.5 text-sm font-medium text-stone-700 dark:text-slate-200">Services</p>
-                    <div className="space-y-2">
+                  <ServicePointEditor
+                    points={room.servicePoints}
+                    wallLabels={room.walls.map((w, i) => w.label || `Wall ${String.fromCharCode(65 + i)}`)}
+                    refs={roomRefs?.points ?? {}}
+                    onChange={(list: ServicePoint[]) => patchRoom(room.id, { servicePoints: list })}
+                  />
+
+                  <RoomPhotos
+                    jobId={jobId}
+                    cmRef={cmRef}
+                    roomIndex={roomIndex}
+                    photoIds={room.photoIds}
+                    photos={photos}
+                    onChange={(ids) => patchRoom(room.id, { photoIds: ids })}
+                    onUploaded={(photo) => setPhotos((prev) => ({ ...prev, [photo.id]: photo }))}
+                  />
+
+                  {/* The free-text service notes this screen used before points
+                      were positioned. Kept editable so nothing captured on an
+                      older measure is stranded, but folded away by default. */}
+                  <details open={Boolean(room.services.power || room.services.water || room.services.gas)}>
+                    <summary className="cursor-pointer text-sm font-medium text-stone-500 dark:text-slate-400">
+                      Service notes (free text)
+                    </summary>
+                    <div className="mt-2 space-y-2">
                       <ServiceInput label="Power" value={room.services.power} onChange={(v) => patchRoom(room.id, { services: { ...room.services, power: v } })} />
                       <ServiceInput label="Water" value={room.services.water} onChange={(v) => patchRoom(room.id, { services: { ...room.services, water: v } })} />
                       <ServiceInput label="Gas" value={room.services.gas} onChange={(v) => patchRoom(room.id, { services: { ...room.services, gas: v } })} />
                     </div>
-                  </div>
+                  </details>
 
                   <Field label="Appliances (one per line)">
                     <textarea className="input min-h-[70px] resize-y" value={room.appliances} onChange={(e) => patchRoom(room.id, { appliances: e.target.value })} placeholder="Oven&#10;Dishwasher&#10;Rangehood" />
@@ -259,9 +342,14 @@ export function MeasureForm({ jobId }: { jobId: string }) {
         <input ref={sheetInput} type="file" accept="image/*" multiple hidden onChange={(e) => readSheet(e.target.files)} />
       </div>
 
+      <div className="mt-3">
+        <MeasureImport busy={importing} onImport={importRooms} />
+      </div>
+
       {rooms.length === 0 && !proposal && (
         <p className="mt-3 text-center text-sm text-stone-400 dark:text-slate-500">
-          Add a room by hand, or photograph a site sheet and let AI read it. Everything saves as you go — even offline.
+          Add a room by hand, paste dimensions in, or photograph a site sheet and let AI read it. Everything saves as
+          you go — even offline.
         </p>
       )}
 

@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { emptyRoom, parseMeasure, roomSummary, roomHasData } from "./measure";
+import {
+  emptyRoom,
+  emptyServicePoint,
+  parseMeasure,
+  roomSummary,
+  roomHasData,
+  serviceCounts,
+  servicePosition,
+  isPlaceable,
+} from "./measure";
 
 describe("emptyRoom", () => {
   it("starts with a name, one wall and blank services", () => {
@@ -58,7 +67,83 @@ describe("roomSummary", () => {
     expect(roomSummary(room)).toBe("1 wall · ceiling 2400mm · 1 opening · 1 photo");
   });
 
+  it("calls out power and water by name and folds the rest together", () => {
+    const room = {
+      ...emptyRoom("r1"),
+      servicePoints: [
+        emptyServicePoint("a", "power"),
+        emptyServicePoint("b", "power"),
+        emptyServicePoint("c", "water"),
+        emptyServicePoint("d", "waste"),
+        emptyServicePoint("e", "gas"),
+      ],
+    };
+    expect(roomSummary(room)).toBe("2 power · 1 water · 2 other services");
+  });
+
   it("reads empty when nothing is captured", () => {
     expect(roomSummary(emptyRoom("r1"))).toBe("Nothing captured yet");
+  });
+});
+
+describe("service points", () => {
+  it("starts a power point at bench height as a double", () => {
+    const p = emptyServicePoint("sp1", "power");
+    expect(p).toMatchObject({ kind: "power", heightMm: 1100, qty: 2, existing: true });
+  });
+
+  it("guesses nothing for the other services", () => {
+    expect(emptyServicePoint("sp1", "water")).toMatchObject({ heightMm: null, qty: 1 });
+  });
+
+  it("normalises a stored point and keeps an unknown kind as power", () => {
+    const raw = JSON.stringify({
+      rooms: [
+        {
+          id: "r1",
+          servicePoints: [
+            { kind: "power", label: "Fridge", wall: " Wall A ", offsetMm: "2400", heightMm: 1750, qty: "1", existing: false },
+            { kind: "sorcery", label: "Mystery" },
+            { kind: "water", qty: 0 },
+            "junk",
+          ],
+        },
+      ],
+    });
+    const points = parseMeasure(raw).rooms[0].servicePoints;
+    expect(points).toHaveLength(3);
+    expect(points[0]).toMatchObject({ wall: "Wall A", offsetMm: 2400, qty: 1, existing: false });
+    expect(points[1].kind).toBe("power"); // kept, not dropped — a position is a fact
+    expect(points[2].qty).toBe(1); // a quantity of zero makes no sense
+  });
+
+  it("reads an unmarked point as already on site", () => {
+    const raw = JSON.stringify({ rooms: [{ id: "r1", servicePoints: [{ kind: "power" }] }] });
+    expect(parseMeasure(raw).rooms[0].servicePoints[0].existing).toBe(true);
+  });
+
+  it("gives a point an id when the stored row has none", () => {
+    const raw = JSON.stringify({ rooms: [{ id: "r1" }, { id: "r2", servicePoints: [{ kind: "gas" }] }] });
+    expect(parseMeasure(raw).rooms[1].servicePoints[0].id).toBe("r2-sp-1");
+  });
+
+  it("defaults servicePoints to empty for a room saved before they existed", () => {
+    const raw = JSON.stringify({ rooms: [{ id: "r1", walls: [{ label: "A", mm: 3600 }] }] });
+    expect(parseMeasure(raw).rooms[0].servicePoints).toEqual([]);
+  });
+
+  it("counts by kind", () => {
+    const room = { ...emptyRoom("r1"), servicePoints: [emptyServicePoint("a", "power"), emptyServicePoint("b", "power")] };
+    expect(serviceCounts(room)).toEqual({ power: 2, water: 0, waste: 0, gas: 0, data: 0 });
+  });
+
+  it("describes a position, and says nothing when there isn't one", () => {
+    const placed = { ...emptyServicePoint("a", "power"), wall: "Wall A", offsetMm: 2400 };
+    expect(servicePosition(placed)).toBe("Wall A, 2400 from start, 1100 high");
+    expect(isPlaceable(placed)).toBe(true);
+
+    const floating = emptyServicePoint("b", "water");
+    expect(servicePosition(floating)).toBe("");
+    expect(isPlaceable(floating)).toBe(false);
   });
 });

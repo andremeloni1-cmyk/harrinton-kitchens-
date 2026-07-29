@@ -35,7 +35,18 @@ export async function POST(_req: Request, { params }: Params) {
     : "";
   const discrepancies = findDiscrepancies(measure, quoteText);
 
-  await prisma.checkMeasure.update({ where: { jobId }, data: { status: "complete", completedAt: new Date() } });
+  // Stamp who signed the measure off. A reference is only worth having if it
+  // answers "who stood in that room" as well as "which room" — the first
+  // question asked when a dimension is later disputed.
+  await prisma.checkMeasure.update({
+    where: { jobId },
+    data: {
+      status: "complete",
+      completedAt: new Date(),
+      measuredAt: cm.measuredAt ?? new Date(),
+      measuredByName: cm.measuredByName || gate.name || gate.email,
+    },
+  });
 
   // Advance to DESIGN (forward only).
   const from = job.pipelineStage as PipelineStage;

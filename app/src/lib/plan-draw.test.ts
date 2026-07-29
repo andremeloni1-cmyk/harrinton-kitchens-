@@ -1,10 +1,94 @@
 import { describe, it, expect } from "vitest";
-import { emptyRoom, type Room } from "./measure";
-import { planGeometry, renderPlanSvg, planNotes, esc } from "./plan-draw";
+import { emptyRoom, emptyServicePoint, type Room, type ServicePoint } from "./measure";
+import { planGeometry, renderPlanSvg, planNotes, serviceLine, esc } from "./plan-draw";
 
 function room(over: Partial<Room> = {}): Room {
   return { ...emptyRoom("r1", "Kitchen"), walls: [], ...over };
 }
+
+function point(over: Partial<ServicePoint> = {}): ServicePoint {
+  return { ...emptyServicePoint("sp1", "power"), ...over };
+}
+
+describe("service points on the plan", () => {
+  const walls = [
+    { label: "Wall A", mm: 4000 },
+    { label: "Wall B", mm: 3000 },
+  ];
+
+  it("places a point along its wall at the captured offset", () => {
+    const geo = planGeometry(
+      room({ walls, servicePoints: [point({ wall: "Wall A", offsetMm: 1000, label: "Fridge GPO" })] })
+    )!;
+    expect(geo.services).toHaveLength(1);
+    expect(geo.services[0]).toMatchObject({ kind: "power", code: "P", label: "Fridge GPO", existing: true });
+    expect(geo.services[0].at).toEqual({ x: 1000, y: 0 }); // 1000 along the east wall
+    expect(geo.unplacedServices).toEqual([]);
+  });
+
+  it("matches the wall regardless of how the label was cased", () => {
+    const geo = planGeometry(room({ walls, servicePoints: [point({ wall: "wall b", offsetMm: 500 })] }))!;
+    expect(geo.services[0].at).toEqual({ x: 4000, y: 500 });
+  });
+
+  it("clamps an offset that overruns the wall rather than dropping the point", () => {
+    const geo = planGeometry(room({ walls, servicePoints: [point({ wall: "Wall A", offsetMm: 99999 })] }))!;
+    expect(geo.services[0].at).toEqual({ x: 4000, y: 0 });
+  });
+
+  it("lists a point with no wall or no offset instead of guessing one", () => {
+    const geo = planGeometry(
+      room({
+        walls,
+        servicePoints: [
+          point({ id: "a", label: "Behind the fridge" }),
+          point({ id: "b", wall: "Wall A" }),
+          point({ id: "c", wall: "Wall Z", offsetMm: 100 }),
+        ],
+      })
+    )!;
+    expect(geo.services).toEqual([]);
+    expect(geo.unplacedServices.map((p) => p.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("draws an existing point filled and one still to be run hollow", () => {
+    const svg = renderPlanSvg(
+      room({
+        walls,
+        servicePoints: [
+          point({ id: "a", wall: "Wall A", offsetMm: 1000, label: "Existing GPO" }),
+          point({ id: "b", kind: "water", wall: "Wall B", offsetMm: 900, label: "New tap", existing: false }),
+        ],
+      })
+    )!;
+    expect(svg).toContain("Existing GPO");
+    expect(svg).toContain("New tap");
+    expect(svg).toContain('fill="#d97706"'); // the existing power point is solid
+    expect(svg).toContain("stroke-dasharray"); // the one to be provided is dashed
+  });
+
+  it("escapes a service label into the SVG", () => {
+    const svg = renderPlanSvg(
+      room({ walls, servicePoints: [point({ wall: "Wall A", offsetMm: 100, label: '<script>"x"' })] })
+    )!;
+    expect(svg).not.toContain("<script>");
+    expect(svg).toContain("&lt;script&gt;");
+  });
+});
+
+describe("serviceLine", () => {
+  it("reads as a sentence a tradesman can work from", () => {
+    expect(
+      serviceLine(point({ label: "Island", wall: "Wall B", offsetMm: 1200, heightMm: 900, qty: 4, existing: false }))
+    ).toBe("Power point ×4 — Island · Wall B, 1200 from start, 900 high · to be provided");
+  });
+
+  it("says only what was captured", () => {
+    expect(serviceLine({ ...emptyServicePoint("sp1", "water"), label: "Sink", heightMm: null })).toBe(
+      "Water — Sink"
+    );
+  });
+});
 
 describe("planGeometry", () => {
   it("lays four walls out clockwise into a closed rectangle", () => {
@@ -211,7 +295,7 @@ describe("planNotes", () => {
       })
     );
     const headings = notes.map((n) => n.heading);
-    expect(headings).toEqual(["Openings without a position", "Services", "Appliances", "Site notes"]);
+    expect(headings).toEqual(["Openings without a position", "Service notes", "Appliances", "Site notes"]);
     expect(notes[0].body).toBe("Door 820mm");
     expect(notes[1].body).toBe("Power: GPO x4 on Wall A\nGas: cooktop");
   });
