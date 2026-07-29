@@ -580,6 +580,7 @@ model Job {
   messages     PortalMessage[]
   expenses     Expense[]
   loadStops    LoadStop[]
+  hardware     JobHardware[]
 
   notes        String?
   completedAt  DateTime? // set when status first becomes "completed" (real completion time)
@@ -801,8 +802,45 @@ model HardwareItem {
   orderedAt    DateTime?
   events       HardwareEvent[]
   rules        HardwareRule[]
+  jobHardware  JobHardware[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// What one job needs of one stock line, and what it has already taken.
+//
+// This is also the reservation. A job's *outstanding* need — required minus
+// picked — is what it is holding against the shelf, so a second job sees only
+// what is genuinely free. Deliberately not a separate reservations table:
+// two records of the same fact drift, and a stale reservation silently
+// over- or under-promises stock.
+//
+// Everything is in pieces. Stock is counted in packs and a cut list needs
+// pieces, and mixing the two is the mistake this whole feature exists to stop
+// someone making by hand.
+model JobHardware {
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  hardwareItemId String
+  hardwareItem   HardwareItem @relation(fields: [hardwareItemId], references: [id], onDelete: Cascade)
+
+  requiredPieces Int @default(0)
+  pickedPieces   Int @default(0)
+
+  // derived = produced by the rules from an imported board report, and replaced
+  // wholesale on re-import. manual = added by hand, and left alone by an import
+  // because nothing in the CAD file knows about it.
+  source String @default("derived")
+  note   String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One row per stock line per job — the requirement is a total, not a log.
+  @@unique([jobId, hardwareItemId])
+  @@index([hardwareItemId])
 }
 
 // How a cabinet on a CAD board report becomes hardware to order.
