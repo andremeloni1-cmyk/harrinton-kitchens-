@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { importMeasurements, importSummary, parseMm, splitDelimited } from "./measure-import";
+import { importMeasurements, importSummary, parseMm } from "./measure-import";
 
 describe("parseMm", () => {
   it("reads a bare number as millimetres", () => {
@@ -24,21 +24,6 @@ describe("parseMm", () => {
   });
 });
 
-describe("splitDelimited", () => {
-  it("keeps a quoted field containing the delimiter in one piece", () => {
-    expect(splitDelimited('Kitchen,power,"GPO, double",,Wall A', ",")).toEqual([
-      "Kitchen",
-      "power",
-      "GPO, double",
-      "",
-      "Wall A",
-    ]);
-  });
-
-  it("unescapes a doubled quote", () => {
-    expect(splitDelimited('a,"say ""hi"""', ",")).toEqual(["a", 'say "hi"']);
-  });
-});
 
 describe("importMeasurements — freeform", () => {
   const paste = [

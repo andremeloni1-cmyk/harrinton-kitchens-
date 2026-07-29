@@ -35,6 +35,7 @@ import {
   type ServiceKind,
   type ServicePoint,
 } from "./measure";
+import { splitDelimited, detectDelimiter } from "./delimited";
 
 export type ImportWarning = { line: number; text: string; reason: string };
 
@@ -98,30 +99,6 @@ export function parseMm(raw: string): number | null {
 // Delimited (CSV / TSV)
 // ---------------------------------------------------------------------------
 
-/** Split one delimited line, honouring double quotes around a field. */
-export function splitDelimited(line: string, delimiter: string): string[] {
-  const out: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else quoted = false;
-      } else field += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === delimiter) {
-      out.push(field.trim());
-      field = "";
-    } else field += ch;
-  }
-  out.push(field.trim());
-  return out;
-}
-
 const HEADER_ALIASES: Record<string, string> = {
   room: "room",
   area: "room",
@@ -159,13 +136,6 @@ function headerMap(cells: string[]): Record<string, number> | null {
   // A header row has to name at least a type and a room, otherwise a freeform
   // paste whose first line happens to say "Kitchen" would be eaten as a header.
   return "type" in map && "room" in map ? map : null;
-}
-
-function detectDelimiter(line: string): string | null {
-  if (line.includes("\t")) return "\t";
-  if (line.includes(",")) return ",";
-  if (line.includes(";")) return ";";
-  return null;
 }
 
 // ---------------------------------------------------------------------------
