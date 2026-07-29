@@ -7,6 +7,7 @@ import { RescheduleModal } from "@/components/RescheduleModal";
 import { WorkloadCard } from "@/components/WorkloadCard";
 import { Modal } from "@/components/Modal";
 import { fmtRange, fmtDay } from "@/lib/format";
+import { useMounted } from "@/lib/use-mounted";
 import { api, type JobDTO } from "@/lib/job";
 import { workdaySegments, jobEnd, WORKDAY_MINS } from "@/lib/schedule";
 import { companyPalette, companyLabel, companyKeyOf, legendFor, paletteMap, type CompanyPalette } from "@/lib/colors";
@@ -50,7 +51,41 @@ const WEEKDAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"];
 
 type ExternalEvent = { id: string; title: string; start: string; end: string; allDay: boolean };
 
+/**
+ * Every date on this page is anchored to "now" — which month is open, which day
+ * is selected, which cell gets the today ring. The server renders in UTC and the
+ * user's browser in local time, so across a date boundary (UTC evening is
+ * already tomorrow in Australia) those two renders disagree and hydration fails.
+ *
+ * There is no clock both sides can agree on, so rather than gate each date
+ * individually the whole view waits for mount. That keeps the wall-clock reads
+ * inside `CalendarView` client-only by construction — a later `new Date()` can't
+ * reintroduce the mismatch — at the cost of one frame of skeleton, which the
+ * page already shows anyway while jobs load.
+ */
 export default function CalendarPage() {
+  const mounted = useMounted();
+  if (!mounted) return <CalendarSkeleton />;
+  return <CalendarView />;
+}
+
+function CalendarSkeleton() {
+  return (
+    <div className="px-4 pt-6">
+      <header className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Calendar</h1>
+        <div className="skeleton h-9 w-44 rounded-xl" />
+      </header>
+      <div className="space-y-3">
+        <div className="skeleton h-24 rounded-bento" />
+        <div className="skeleton h-72 rounded-bento" />
+        <div className="skeleton h-28 rounded-bento" />
+      </div>
+    </div>
+  );
+}
+
+function CalendarView() {
   const [jobs, setJobs] = useState<JobDTO[]>([]);
   const [external, setExternal] = useState<ExternalEvent[]>([]);
   const [calStatus, setCalStatus] = useState<{ connected: boolean; error?: string }>({ connected: false });
