@@ -13,7 +13,15 @@
 // anything at all. Nothing here invents a dimension — a plan only ever shows
 // numbers that were measured.
 
-import type { Room, Measurement } from "./measure";
+import {
+  SERVICE_LABELS,
+  isPlaceable,
+  servicePosition,
+  type Room,
+  type Measurement,
+  type ServiceKind,
+  type ServicePoint,
+} from "./measure";
 
 export type Point = { x: number; y: number };
 
@@ -37,11 +45,27 @@ export type PlanOpening = {
   outward: Point;
 };
 
+/** A power point, tap or drain located on a wall. */
+export type PlanService = {
+  kind: ServiceKind;
+  label: string;
+  /** Short code drawn in the marker — "P", "W", "D", "G", "N". */
+  code: string;
+  at: Point;
+  /** The host wall's outward normal, for pushing the marker clear of the wall. */
+  outward: Point;
+  existing: boolean;
+};
+
 export type PlanGeometry = {
   walls: PlanWall[];
   openings: PlanOpening[];
   /** Openings that named no wall (or an unknown one) — listed, not drawn. */
   unplaced: Measurement[];
+  /** Service points pinned to a wall and drawn on it. */
+  services: PlanService[];
+  /** Service points with no usable position — listed beside the plan instead. */
+  unplacedServices: ServicePoint[];
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   /** True when the last wall ends back near the first wall's start. */
   closed: boolean;
@@ -129,8 +153,52 @@ export function planGeometry(room: Room): PlanGeometry | null {
     });
   }
 
-  return { walls, openings, unplaced, bounds, closed };
+  const services: PlanService[] = [];
+  const unplacedServices: ServicePoint[] = [];
+
+  for (const point of room.servicePoints) {
+    const wall = point.wall ? byLabel.get(point.wall.trim().toLowerCase()) : undefined;
+    // Unlike an opening, a service has no width — it just needs a spot on a
+    // wall. An offset past the end of the wall is clamped rather than dropped:
+    // it is a typo in a number, not a reason to lose a power point.
+    if (!wall || !isPlaceable(point)) {
+      unplacedServices.push(point);
+      continue;
+    }
+    const along = Math.min(Math.max(point.offsetMm as number, 0), wall.mm);
+    const dir = { x: (wall.end.x - wall.start.x) / wall.mm, y: (wall.end.y - wall.start.y) / wall.mm };
+    services.push({
+      kind: point.kind,
+      label: point.label || SERVICE_LABELS[point.kind],
+      code: SERVICE_MARK[point.kind],
+      at: { x: wall.start.x + dir.x * along, y: wall.start.y + dir.y * along },
+      outward: wall.outward,
+      existing: point.existing,
+    });
+  }
+
+  return { walls, openings, unplaced, services, unplacedServices, bounds, closed };
 }
+
+// One letter per service in the drawn marker, matching the reference scheme in
+// measure-ref.ts so a marker on the plan and a ref on the sheet read alike.
+const SERVICE_MARK: Record<ServiceKind, string> = {
+  power: "P",
+  water: "W",
+  waste: "D",
+  gas: "G",
+  data: "N",
+};
+
+// Marker colours, chosen to stay distinct in a black-and-white print as well as
+// on screen — a plan drawn off this gets printed and taken back to site.
+const SERVICE_FILL: Record<ServiceKind, string> = {
+  power: "#d97706",
+  water: "#0284c7",
+  waste: "#57534e",
+  gas: "#ea580c",
+  data: "#7c3aed",
+};
 
 /** XML-escape a string for safe interpolation into SVG text. */
 export function esc(s: string): string {
@@ -219,6 +287,30 @@ export function renderPlanSvg(room: Room, options: PlanOptions = {}): string | n
     );
   }
 
+  // Service markers sit just inside the wall, where the cabinet they clash
+  // with will be. A point still to be run by a trade is drawn hollow, so
+  // "there is a GPO here" and "there needs to be a GPO here" can't be confused
+  // by someone reading the plan on a phone in a half-built kitchen.
+  for (const service of geo.services) {
+    const p = to(service.at);
+    const cx = round(p.x - service.outward.x * 13);
+    const cy = round(p.y - service.outward.y * 13);
+    const fill = SERVICE_FILL[service.kind];
+    parts.push(
+      `<circle cx="${cx}" cy="${cy}" r="8" fill="${service.existing ? fill : "#ffffff"}" stroke="${fill}" stroke-width="2"${
+        service.existing ? "" : ' stroke-dasharray="3 2"'
+      } />`,
+      `<text x="${cx}" y="${round(cy + 3.5)}" font-size="9" font-weight="700" fill="${
+        service.existing ? "#ffffff" : fill
+      }" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">${esc(service.code)}</text>`,
+      // The description goes a little further in again, so it can't collide
+      // with the wall dimension sitting on the outside.
+      `<text x="${cx}" y="${round(cy - service.outward.y * 12 - 12)}" font-size="9" fill="${fill}" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">${esc(
+        service.label
+      )}</text>`
+    );
+  }
+
   if (options.title !== false) {
     const ceiling = room.ceilingMm != null ? ` · ceiling ${room.ceilingMm}` : "";
     parts.push(
@@ -241,6 +333,23 @@ export function renderPlanSvg(room: Room, options: PlanOptions = {}): string | n
   ].join("");
 }
 
+/** One service point as a line of text, for the notes panel and the print sheet. */
+export function serviceLine(point: ServicePoint): string {
+  const head = [
+    SERVICE_LABELS[point.kind],
+    point.kind === "power" && point.qty > 1 ? `×${point.qty}` : null,
+    point.label ? `— ${point.label}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const where = servicePosition(point);
+  // "To be provided" goes last and in words, because it is the bit that turns
+  // a measurement into an instruction for a trade.
+  return [head, where, point.existing ? null : "to be provided", point.notes || null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** Everything captured that the plan can't draw, for the notes panel beside it. */
 export function planNotes(room: Room): { heading: string; body: string }[] {
   const geo = planGeometry(room);
@@ -254,12 +363,33 @@ export function planNotes(room: Room): { heading: string; body: string }[] {
     });
   }
 
+  // Everything the plan drew, spelled out — a marker says where, this says
+  // what and how high, which is what the electrician and plumber need.
+  const placed = geo ? geo.services : [];
+  if (placed.length > 0) {
+    notes.push({
+      heading: "Services on the plan",
+      body: room.servicePoints
+        .filter(isPlaceable)
+        .map((p) => serviceLine(p))
+        .join("\n"),
+    });
+  }
+
+  const floating = geo ? geo.unplacedServices : room.servicePoints;
+  if (floating.length > 0) {
+    notes.push({
+      heading: "Services without a position",
+      body: floating.map((p) => serviceLine(p)).join("\n"),
+    });
+  }
+
   const services = [
     room.services.power ? `Power: ${room.services.power}` : null,
     room.services.water ? `Water: ${room.services.water}` : null,
     room.services.gas ? `Gas: ${room.services.gas}` : null,
   ].filter(Boolean);
-  if (services.length > 0) notes.push({ heading: "Services", body: services.join("\n") });
+  if (services.length > 0) notes.push({ heading: "Service notes", body: services.join("\n") });
 
   if (room.appliances.trim()) notes.push({ heading: "Appliances", body: room.appliances.trim() });
   if (room.notes.trim()) notes.push({ heading: "Site notes", body: room.notes.trim() });
