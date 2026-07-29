@@ -62,8 +62,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en-GB" suppressHydrationWarning>
       <head>
-        {/* Apply the saved theme before paint to avoid a light flash. */}
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Apply the saved theme before paint to avoid a light flash.
+            suppressHydrationWarning is for the nonce, not the script body: once
+            the parser has used it the browser hides the attribute (so a script
+            can't read it back and mint its own inline tag), leaving the client
+            with "" where the server sent a value. React reads that as a mismatch
+            on every page. The nonce is doing its job precisely because it has
+            disappeared, so the warning is the one thing here that is noise. */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* Per-company accent override (falls back to the default brass in globals.css). */}
         {accentCss && <style dangerouslySetInnerHTML={{ __html: accentCss }} />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

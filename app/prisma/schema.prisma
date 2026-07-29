@@ -454,6 +454,8 @@ model Approval {
   comment    String?  // the client's note when requesting changes
   ip         String?
   createdAt  DateTime @default(now())
+
+  @@index([jobId])
 }
 
 // A versioned quote for a job (P4.2). Each edit-and-send makes a new version;
