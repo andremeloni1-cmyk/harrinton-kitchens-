@@ -9,6 +9,7 @@ import { SiteVisitBooking } from "@/components/SiteVisitBooking";
 import { DrawingSets } from "@/components/DrawingSets";
 import { VariationList } from "@/components/VariationList";
 import { CutList } from "@/components/CutList";
+import { JobHardware } from "@/components/JobHardware";
 import { PartsProgress } from "@/components/PartsProgress";
 import { InstallBooking } from "@/components/InstallBooking";
 import { SnagList } from "@/components/SnagList";
@@ -531,6 +532,9 @@ export default function JobDetailPage() {
 
       {/* Cut list — cabinets & parts extracted from the CAD PDF */}
       <CutList jobId={id} />
+
+      {/* Hardware to order, worked out from the CAD board report */}
+      <JobHardware jobId={id} />
 
       {/* Part-level production progress from factory scans */}
       <PartsProgress jobId={id} />
