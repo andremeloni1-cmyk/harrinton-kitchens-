@@ -55,6 +55,30 @@ const SCHEMA = {
               additionalProperties: false,
             },
           },
+          // Positioned services — a power point drawn on a wall at a distance
+          // is the single most valuable thing on a site sheet after the wall
+          // runs, and the one most often lost when a sheet is retyped.
+          servicePoints: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                kind: { type: "string", enum: ["power", "water", "waste", "gas", "data"] },
+                label: { type: "string" },
+                wall: { type: "string" },
+                offsetMm: { type: "number" },
+                heightMm: { type: "number" },
+                qty: { type: "number" },
+                existing: { type: "boolean" },
+                notes: { type: "string" },
+              },
+              required: ["kind"],
+              additionalProperties: false,
+            },
+          },
+          // Free text for anything about the services the positions can't
+          // carry — kept so a note like "sparky to confirm board capacity"
+          // isn't forced into a position it doesn't have.
           services: {
             type: "object",
             properties: { power: { type: "string" }, water: { type: "string" }, gas: { type: "string" } },
@@ -77,11 +101,18 @@ const PROMPT =
   "Read the handwriting and diagram and extract the rooms and their measurements. " +
   "All dimensions are millimetres — convert any that are clearly in metres or centimetres to mm. " +
   "For each room capture: a name; the ceiling height; each wall run as a labelled length; each " +
-  "opening (door/window) as a labelled width; the power/water/gas service positions; a list of " +
-  "appliances; and any other notes. " +
+  "opening (door/window) as a labelled width; a list of appliances; and any other notes. " +
   "For an opening, also record which wall it is drawn in (`wall`, matching that wall run's label) " +
   "and how far along that wall it starts, measured from the wall's beginning (`offsetMm`) — but " +
   "only when the sketch actually shows it. An opening with no position is fine and is expected. " +
+  "Record each power point, tap, drain, gas point and data point as a separate entry in " +
+  "`servicePoints`. Australian sheets write power points as GPO, PP or a double-circle symbol; " +
+  "treat all of those as kind `power`. Use kind `waste` for a drain or trap and `water` for a " +
+  "supply or tap. Give each one the wall it is drawn on and its distance along that wall the same " +
+  "way as an opening, plus `heightMm` off the floor and `qty` (outlets in the bank) when the sheet " +
+  "says. Set `existing` false only when the sheet marks it as new, proposed or to be provided. " +
+  "A service point with a description and no position is still worth returning. " +
+  "Put anything about the services that isn't a single located point into the `services` free text. " +
   "Only include values you can actually read — omit a field rather " +
   "than guessing. If the sheet is illegible or clearly not a measure sheet, return an empty rooms array.";
 

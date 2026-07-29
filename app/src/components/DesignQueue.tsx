@@ -30,7 +30,7 @@ const FILTERS: { key: Filter; label: string }[] = [
  * has been done, each showing the five steps and the one thing it is waiting
  * on — the question is "what's stopping this", not "what stage is it at".
  */
-export function DesignQueue() {
+export function DesignQueue({ embedded = false }: { embedded?: boolean } = {}) {
   const [jobs, setJobs] = useState<DesignJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
@@ -57,13 +57,17 @@ export function DesignQueue() {
   );
 
   return (
-    <div className="px-4 pt-6">
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Design</h1>
-        <p className="text-sm text-stone-500 dark:text-slate-400">
-          Check measure, mudmap, plan, then the client&apos;s sign-off.
-        </p>
-      </header>
+    // Embedded inside DesignTabs, the page furniture (padding and heading)
+    // already exists — repeating it would indent the queue inside the tabs.
+    <div className={embedded ? "" : "px-4 pt-6"}>
+      {!embedded && (
+        <header className="mb-4">
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-slate-100">Design</h1>
+          <p className="text-sm text-stone-500 dark:text-slate-400">
+            Check measure, mudmap, plan, then the client&apos;s sign-off.
+          </p>
+        </header>
+      )}
 
       <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
         {FILTERS.map((f) => {
